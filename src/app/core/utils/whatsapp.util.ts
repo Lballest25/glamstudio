@@ -20,6 +20,15 @@ function buildUri(phone: string, message: string, countryCode = '57'): string {
   return `${BASE_URL}${formatted}?text=${encodeURIComponent(message)}`;
 }
 
+export function buildChatUri(phone: string, countryCode = '57'): string {
+  return `${BASE_URL}${formatPhone(phone, countryCode)}`;
+}
+
+// No recipient: WhatsApp lets the sender pick the contact/group.
+export function buildShareUri(message: string): string {
+  return `${BASE_URL}?text=${encodeURIComponent(message)}`;
+}
+
 export function buildLoyaltyAlertUri(
   clientPhone: string,
   clientName: string,

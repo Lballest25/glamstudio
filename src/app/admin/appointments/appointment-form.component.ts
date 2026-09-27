@@ -1,137 +1,314 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { ToastService } from '../../core/services/toast.service';
 import { formatCurrency } from '../../core/utils/currency.util';
-import { ClientRow, ClientsService } from '../clients/clients.service';
+import { avatarColors, formatDuration, initials, plural, toLocalISODate } from '../../core/utils/format.util';
+import { CATEGORY_ORDER, categoryMeta } from '../../core/utils/labels';
+import { IconComponent } from '../../shared/components/icon.component';
 import { CatalogService, ServiceRow } from '../catalog/catalog.service';
+import { ClientRow, ClientsService } from '../clients/clients.service';
 import { AppointmentsService } from './appointments.service';
 
 @Component({
   selector: 'app-appointment-form',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink, IconComponent],
   template: `
-    <h1>Nueva cita</h1>
+    <div class="page page-narrow fade-in">
+      <a class="back-link" routerLink="/admin/citas">
+        <app-icon name="arrow-left" [size]="18" />
+        Agenda
+      </a>
 
-    <div class="card" style="max-width: 560px;">
-      <label class="field">Clienta</label>
-      @if (selectedClient()) {
-        <div class="list-item" style="margin-bottom:14px;">
-          <span style="flex:1; font-weight:600;">{{ selectedClient()!.full_name }}</span>
-          <button class="btn btn-sm" (click)="clearClient()">Cambiar</button>
-        </div>
-      } @else {
-        <input
-          type="search"
-          class="field"
-          placeholder="Buscar clienta por nombre…"
-          [(ngModel)]="clientQuery"
-          (ngModelChange)="onClientQueryChange()"
-        />
-        @if (clientResults().length > 0) {
-          <ul class="list" style="margin-bottom:14px;">
-            @for (client of clientResults(); track client.id) {
-              <li class="list-item" (click)="selectClient(client)">{{ client.full_name }}</li>
-            }
-          </ul>
-        }
-      }
+      <header>
+        <h1>Nueva cita</h1>
+        <p class="page-subtitle">Agenda una cita para una clienta registrada.</p>
+      </header>
 
-      <div style="display:flex; gap:12px; flex-wrap:wrap;">
-        <label class="field" style="flex:1; min-width:140px;">
-          Fecha
-          <input type="date" name="date" [(ngModel)]="date" required />
-        </label>
-        <label class="field" style="flex:1;">
-          Hora
-          <input type="time" name="time" [(ngModel)]="time" required />
-        </label>
-      </div>
-
-      <label class="field">Servicios</label>
-      @for (category of categories(); track category) {
-        <p class="hint" style="margin: 4px 0;">{{ category }}</p>
-        @for (service of servicesByCategory(category); track service.id) {
-          <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <section class="card card-pad stack">
+        <div class="step-title"><span class="step-num">1</span><h2>Clienta</h2></div>
+        @if (selectedClient(); as client) {
+          <div class="picked">
+            <span class="avatar" [style.background]="avatar(client.full_name).bg" [style.color]="avatar(client.full_name).fg">{{
+              initials(client.full_name)
+            }}</span>
+            <span class="grow">
+              <span class="list-title truncate" style="display: block">{{ client.full_name }}</span>
+              <span class="list-sub" style="display: block">{{ client.phone || 'Sin teléfono' }}</span>
+            </span>
+            <button type="button" class="btn btn-ghost btn-sm" (click)="clearClient()">Cambiar</button>
+          </div>
+        } @else {
+          <div class="input-icon">
+            <app-icon name="search" [size]="18" />
             <input
-              type="checkbox"
-              [checked]="isSelected(service.id)"
-              (change)="toggleService(service.id)"
+              class="input"
+              type="search"
+              placeholder="Busca por nombre…"
+              aria-label="Buscar clienta"
+              [(ngModel)]="clientQuery"
+              (ngModelChange)="onClientQueryChange()"
             />
-            {{ service.name }} — {{ formatCurrency(service.base_price) }}
-          </label>
+          </div>
+          @if (clientResults().length > 0) {
+            <ul class="list results">
+              @for (client of clientResults(); track client.id) {
+                <li>
+                  <button type="button" class="list-row" (click)="selectClient(client)">
+                    <span
+                      class="avatar avatar-sm"
+                      [style.background]="avatar(client.full_name).bg"
+                      [style.color]="avatar(client.full_name).fg"
+                      >{{ initials(client.full_name) }}</span
+                    >
+                    <span class="grow">
+                      <span class="list-title truncate" style="display: block">{{ client.full_name }}</span>
+                      <span class="list-sub" style="display: block">{{ client.phone || '' }}</span>
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else if (clientQuery.trim().length >= 2 && !searching()) {
+            <p class="subtle small">Sin resultados para "{{ clientQuery }}".</p>
+          }
+          <a class="link-sm" routerLink="/admin/clientas/nueva">
+            <app-icon name="user-plus" [size]="16" />
+            Registrar una clienta nueva
+          </a>
         }
-      }
+      </section>
 
-      <p style="font-weight:800; margin: 16px 0;">Subtotal: {{ formatCurrency(subtotal()) }}</p>
+      <section class="card card-pad stack">
+        <div class="step-title"><span class="step-num">2</span><h2>Fecha y hora</h2></div>
+        <div class="form-grid">
+          <label class="field">
+            <span class="field-label">Fecha</span>
+            <input class="input" type="date" [(ngModel)]="date" />
+          </label>
+          <label class="field">
+            <span class="field-label">Hora</span>
+            <input class="input" type="time" step="900" [(ngModel)]="time" />
+          </label>
+        </div>
+      </section>
 
-      <label class="field">
-        Notas
-        <textarea name="notes" rows="2" [(ngModel)]="notes"></textarea>
-      </label>
+      <section class="card card-pad stack">
+        <div class="step-title"><span class="step-num">3</span><h2>Servicios</h2></div>
+        @if (loadingServices()) {
+          <div class="service-grid">
+            @for (i of [1, 2, 3, 4]; track i) {
+              <span class="skeleton" style="height: 64px; border-radius: 14px"></span>
+            }
+          </div>
+        } @else {
+          @for (group of groups(); track group.category) {
+            <p class="section-title">{{ meta(group.category).label }}</p>
+            <div class="service-grid">
+              @for (service of group.items; track service.id) {
+                <button
+                  type="button"
+                  class="service-tile"
+                  [class.is-selected]="isSelected(service.id)"
+                  [attr.aria-pressed]="isSelected(service.id)"
+                  (click)="toggleService(service.id)"
+                >
+                  <span class="grow">
+                    <span class="tile-name">{{ service.name }}</span>
+                    <span class="tile-meta">{{ formatDuration(service.duration_min) }} · {{ formatCurrency(service.base_price) }}</span>
+                  </span>
+                  <span class="check"><app-icon name="check" [size]="13" [stroke]="3" /></span>
+                </button>
+              }
+            </div>
+          }
+        }
+      </section>
+
+      <section class="card card-pad">
+        <label class="field">
+          <span class="field-label">Notas <span class="optional">(opcional)</span></span>
+          <textarea class="input" rows="3" [(ngModel)]="notes" placeholder="Algo que debas recordar para esta cita"></textarea>
+        </label>
+      </section>
 
       @if (errorMessage()) {
-        <p class="error-text">{{ errorMessage() }}</p>
+        <div class="alert alert-danger">
+          <app-icon name="alert-circle" [size]="18" />
+          <span>{{ errorMessage() }}</span>
+        </div>
       }
 
-      <div style="display:flex; gap:8px;">
-        <button class="btn btn-primary" [disabled]="saving() || !canSave()" (click)="save()">
-          {{ saving() ? 'Guardando…' : 'Agendar cita' }}
-        </button>
-        <button class="btn" (click)="cancel()">Cancelar</button>
+      <div class="sticky-actions">
+        <div class="summary-bar">
+          <div class="grow">
+            <div class="strong num total">{{ formatCurrency(subtotal()) }}</div>
+            <div class="subtle small truncate">{{ summaryText() }}</div>
+          </div>
+          <button type="button" class="btn btn-primary btn-lg" [disabled]="saving() || !canSave()" (click)="save()">
+            @if (saving()) {
+              <span class="spinner"></span>
+            }
+            Agendar
+          </button>
+        </div>
       </div>
     </div>
   `,
+  styles: [
+    `
+      .step-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .step-num {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--c-primary-soft);
+        color: var(--c-primary);
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .picked {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-radius: var(--r-md);
+        background: var(--c-primary-soft);
+      }
+      .results {
+        border: 1px solid var(--c-border);
+        border-radius: var(--r-md);
+        overflow: hidden;
+      }
+      .results .list-row {
+        padding: 10px 14px;
+      }
+      .service-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 8px;
+      }
+      .service-tile {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border: 1.5px solid var(--c-border);
+        border-radius: var(--r-md);
+        background: var(--c-surface);
+        text-align: left;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+      .service-tile:hover {
+        border-color: var(--c-border-strong);
+      }
+      .service-tile.is-selected {
+        border-color: var(--c-primary);
+        background: var(--c-primary-soft);
+      }
+      .tile-name {
+        display: block;
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 1.3;
+      }
+      .tile-meta {
+        display: block;
+        font-size: 12.5px;
+        color: var(--c-text-2);
+        margin-top: 2px;
+      }
+      .check {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid var(--c-border-strong);
+        display: grid;
+        place-items: center;
+        color: transparent;
+        flex-shrink: 0;
+      }
+      .is-selected .check {
+        background: var(--c-primary);
+        border-color: var(--c-primary);
+        color: #fff;
+      }
+      .total {
+        font-size: 18px;
+      }
+    `,
+  ],
 })
 export class AppointmentFormComponent implements OnInit {
+  private readonly auth = inject(AuthService);
+  private readonly clientsService = inject(ClientsService);
+  private readonly catalog = inject(CatalogService);
+  private readonly appointmentsService = inject(AppointmentsService);
+  private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
   selectedClient = signal<ClientRow | null>(null);
   clientQuery = '';
   clientResults = signal<ClientRow[]>([]);
+  searching = signal(false);
 
-  allServices = signal<ServiceRow[]>([]);
-  selectedServiceIds = signal<Set<string>>(new Set());
+  loadingServices = signal(true);
+  services = signal<ServiceRow[]>([]);
+  selectedIds = signal<Set<string>>(new Set());
 
-  date = '';
+  date = toLocalISODate(new Date());
   time = '10:00';
   notes = '';
 
   saving = signal(false);
   errorMessage = signal<string | null>(null);
 
+  groups = computed(() =>
+    CATEGORY_ORDER.map((category) => ({ category, items: this.services().filter((s) => s.category === category) })).filter(
+      (g) => g.items.length > 0
+    )
+  );
+  selectedServices = computed(() => this.services().filter((s) => this.selectedIds().has(s.id)));
+  subtotal = computed(() => this.selectedServices().reduce((sum, s) => sum + s.base_price, 0));
+  totalDuration = computed(() => this.selectedServices().reduce((sum, s) => sum + s.duration_min, 0));
+
+  meta = categoryMeta;
+  avatar = avatarColors;
+  initials = initials;
   formatCurrency = formatCurrency;
+  formatDuration = formatDuration;
 
   private ownerId: string | null = null;
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  constructor(
-    private readonly auth: AuthService,
-    private readonly clientsService: ClientsService,
-    private readonly catalog: CatalogService,
-    private readonly appointmentsService: AppointmentsService,
-    private readonly route: ActivatedRoute,
-    private readonly router: Router
-  ) {}
 
   async ngOnInit() {
     this.ownerId = this.auth.currentUser()?.id ?? null;
     if (!this.ownerId) return;
 
-    this.date = new Date().toISOString().slice(0, 10);
-    this.allServices.set((await this.catalog.getAllServices(this.ownerId)).filter((s) => s.is_active));
+    const params = this.route.snapshot.queryParamMap;
+    const presetDate = params.get('date');
+    if (presetDate && /^\d{4}-\d{2}-\d{2}$/.test(presetDate)) this.date = presetDate;
 
-    const clientId = this.route.snapshot.queryParamMap.get('clientId');
-    if (clientId) {
-      this.selectedClient.set(await this.clientsService.getClientById(clientId));
-    }
-  }
-
-  categories(): string[] {
-    return [...new Set(this.allServices().map((s) => s.category))];
-  }
-
-  servicesByCategory(category: string): ServiceRow[] {
-    return this.allServices().filter((s) => s.category === category);
+    const clientId = params.get('clientId');
+    const [services, client] = await Promise.all([
+      this.catalog.getAllServices(this.ownerId),
+      clientId ? this.clientsService.getClientById(clientId) : Promise.resolve(null),
+    ]);
+    this.services.set(services.filter((s) => s.is_active));
+    this.selectedClient.set(client);
+    this.loadingServices.set(false);
   }
 
   onClientQueryChange() {
@@ -141,8 +318,10 @@ export class AppointmentFormComponent implements OnInit {
         this.clientResults.set([]);
         return;
       }
+      this.searching.set(true);
       const results = await this.clientsService.listClients(this.ownerId, this.clientQuery);
-      this.clientResults.set(results.slice(0, 5));
+      this.clientResults.set(results.slice(0, 6));
+      this.searching.set(false);
     }, 250);
   }
 
@@ -157,25 +336,25 @@ export class AppointmentFormComponent implements OnInit {
   }
 
   isSelected(id: string): boolean {
-    return this.selectedServiceIds().has(id);
+    return this.selectedIds().has(id);
   }
 
   toggleService(id: string) {
-    const next = new Set(this.selectedServiceIds());
+    const next = new Set(this.selectedIds());
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    this.selectedServiceIds.set(next);
+    this.selectedIds.set(next);
   }
 
-  subtotal(): number {
-    const ids = this.selectedServiceIds();
-    return this.allServices()
-      .filter((s) => ids.has(s.id))
-      .reduce((sum, s) => sum + s.base_price, 0);
+  summaryText(): string {
+    const count = this.selectedIds().size;
+    if (!this.selectedClient()) return 'Elige una clienta';
+    if (count === 0) return 'Elige al menos un servicio';
+    return `${plural(count, 'servicio')} · ${formatDuration(this.totalDuration())}`;
   }
 
   canSave(): boolean {
-    return !!this.selectedClient() && this.selectedServiceIds().size > 0 && !!this.date && !!this.time;
+    return !!this.selectedClient() && this.selectedIds().size > 0 && !!this.date && !!this.time;
   }
 
   async save() {
@@ -185,22 +364,18 @@ export class AppointmentFormComponent implements OnInit {
     this.saving.set(true);
     this.errorMessage.set(null);
     try {
-      const scheduledAt = new Date(`${this.date}T${this.time}:00`);
       const id = await this.appointmentsService.createAppointment(
         client.id,
-        scheduledAt,
-        [...this.selectedServiceIds()],
-        this.notes || null
+        new Date(`${this.date}T${this.time}:00`),
+        [...this.selectedIds()],
+        this.notes.trim() || null
       );
+      this.toast.success('Cita agendada');
       await this.router.navigate(['/admin/citas', id]);
     } catch (error) {
       this.errorMessage.set(error instanceof Error ? error.message : 'No se pudo agendar la cita.');
     } finally {
       this.saving.set(false);
     }
-  }
-
-  cancel() {
-    this.router.navigate(['/admin/citas']);
   }
 }

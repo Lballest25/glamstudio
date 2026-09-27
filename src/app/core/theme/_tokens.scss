@@ -1,45 +1,57 @@
-// Palette ported 1:1 from the Flutter app's lib/core/theme/glamstudio_colors.dart
-// so the web app looks visually consistent with the original mobile app.
+// GlamStudio design tokens. Lilac brand kept from the original app, but
+// deepened for text/button contrast (WCAG AA on white) and paired with
+// warm neutrals and a gold accent for loyalty moments.
 :root {
-  // Primary — lila suave
-  --color-primary: #9c7bb8;
-  --color-primary-light: #c4a8dc;
-  --color-primary-dark: #7254a0;
+  // Neutrals
+  --c-bg: #faf7fc;
+  --c-surface: #ffffff;
+  --c-surface-2: #f6f1fa;
+  --c-surface-3: #ede4f5;
+  --c-border: #eee7f4;
+  --c-border-strong: #ddd0ea;
 
-  // Secondary — lavanda/malva
-  --color-secondary: #8b6fa8;
-  --color-secondary-light: #bca8d4;
-  --color-secondary-dark: #5e4080;
+  // Text
+  --c-text: #241733;
+  --c-text-2: #62537a;
+  --c-text-3: #7f7092;
 
-  // Superficies
-  --color-surface: #fbf7ff;
-  --color-surface-variant: #f0e8f8;
-  --color-background: #f6f0fc;
+  // Brand
+  --c-primary: #7b56a6;
+  --c-primary-hover: #694793;
+  --c-primary-brand: #9c7bb8;
+  --c-primary-soft: #f3ecfa;
+  --c-primary-soft-2: #e6d9f3;
+  --c-plum: #3d2656;
 
-  // Texto
-  --color-text-primary: #1d1030;
-  --color-text-secondary: #5c3d80;
-  --color-text-hint: #a890c0;
+  // Accents & status
+  --c-gold: #a97c1e;
+  --c-gold-soft: #fbf1d9;
+  --c-success: #23875b;
+  --c-success-soft: #e2f4ea;
+  --c-warning: #b7791f;
+  --c-warning-soft: #fdf1dc;
+  --c-danger: #c94444;
+  --c-danger-soft: #fbe9e9;
+  --c-info: #3a74b8;
+  --c-info-soft: #e7f0fa;
+  --c-whatsapp: #1ea952;
 
-  // Estados
-  --color-success: #4caf7d;
-  --color-warning: #e8a838;
-  --color-error: #e05656;
-  --color-info: #5b9bd5;
+  // Shape
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-full: 999px;
 
-  // WhatsApp
-  --color-whatsapp: #25d366;
-  --color-whatsapp-dark: #128c7e;
+  // Elevation
+  --sh-sm: 0 1px 2px rgba(36, 23, 51, 0.04), 0 1px 3px rgba(36, 23, 51, 0.04);
+  --sh-md: 0 8px 24px -8px rgba(36, 23, 51, 0.12), 0 2px 6px -2px rgba(36, 23, 51, 0.06);
+  --sh-lg: 0 24px 48px -12px rgba(36, 23, 51, 0.22);
 
-  // Divisores
-  --color-divider: #ddd0ee;
-
-  // Fidelización
-  --color-loyalty-gold: #ffd700;
-  --color-loyalty-silver: #c0c0c0;
-  --color-loyalty-bronze: #cd7f32;
+  // Type
+  --f-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-display: 'Fraunces', Georgia, 'Times New Roman', serif;
 
   // Layout
-  --radius-md: 12px;
-  --font-family-base: 'Nunito', sans-serif;
+  --tabbar-h: 68px;
 }

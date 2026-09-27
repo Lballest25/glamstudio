@@ -44,11 +44,3 @@ export class ExpensesService {
     if (error) throw error;
   }
 }
-
-export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  insumos: 'Insumos',
-  renta: 'Renta',
-  servicios: 'Servicios',
-  marketing: 'Marketing',
-  otro: 'Otro',
-};

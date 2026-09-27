@@ -1,229 +1,302 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { ToastService } from '../../core/services/toast.service';
+import { bookingUrl, copyToClipboard } from '../../core/utils/booking-link';
 import { formatCurrency } from '../../core/utils/currency.util';
-import { buildBirthdayUri } from '../../core/utils/whatsapp.util';
 import {
-  BirthdayClient,
-  DashboardService,
-  LoyaltyAlertRow,
-  TodayAppointment,
-} from './dashboard.service';
+  avatarColors,
+  formatDayLong,
+  formatDuration,
+  formatTime,
+  greeting,
+  initials,
+} from '../../core/utils/format.util';
+import { statusMeta } from '../../core/utils/labels';
+import { buildBirthdayUri } from '../../core/utils/whatsapp.util';
+import { IconComponent } from '../../shared/components/icon.component';
+import { BirthdayClient, DashboardService, LoyaltyAlertRow, TodayAppointment } from './dashboard.service';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
+  imports: [RouterLink, IconComponent],
   template: `
-    <h1>Hoy</h1>
+    <div class="page fade-in">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">{{ todayLabel }}</p>
+          <h1>{{ greetingText }}</h1>
+        </div>
+        <div class="row row-wrap">
+          <button type="button" class="btn" (click)="copyBookingLink()">
+            <app-icon name="link" [size]="18" />
+            Link de reservas
+          </button>
+          <a class="btn btn-primary hide-mobile" routerLink="/admin/citas/nueva">
+            <app-icon name="plus" [size]="18" />
+            Nueva cita
+          </a>
+        </div>
+      </header>
 
-    @if (loading()) {
-      <p class="hint">Cargando…</p>
-    } @else {
-      <section class="summary-cards">
-        <div class="card">
-          <span class="label">Citas hoy</span>
-          <span class="value">{{ todayAppointments().length }}</span>
+      <section class="grid grid-stats">
+        <div class="card stat">
+          <span class="stat-icon tone-primary"><app-icon name="calendar" [size]="20" /></span>
+          <span class="stat-label">Citas de hoy</span>
+          @if (loading()) {
+            <span class="skeleton" style="height: 30px; width: 50%"></span>
+          } @else {
+            <span class="stat-value">{{ appointments().length }}</span>
+          }
         </div>
-        <div class="card">
-          <span class="label">Ingresos del mes</span>
-          <span class="value">{{ formatCurrency(monthTotal()) }}</span>
+        <div class="card stat">
+          <span class="stat-icon tone-success"><app-icon name="wallet" [size]="20" /></span>
+          <span class="stat-label">Ingresos del mes</span>
+          @if (loading()) {
+            <span class="skeleton" style="height: 30px; width: 70%"></span>
+          } @else {
+            <span class="stat-value">{{ formatCurrency(monthTotal()) }}</span>
+          }
         </div>
-        <div class="card">
-          <span class="label">Sesiones del mes</span>
-          <span class="value">{{ monthCount() }}</span>
+        <div class="card stat">
+          <span class="stat-icon tone-info"><app-icon name="calendar-check" [size]="20" /></span>
+          <span class="stat-label">Sesiones del mes</span>
+          @if (loading()) {
+            <span class="skeleton" style="height: 30px; width: 40%"></span>
+          } @else {
+            <span class="stat-value">{{ monthCount() }}</span>
+          }
+        </div>
+        <div class="card stat">
+          <span class="stat-icon tone-gold"><app-icon name="gift" [size]="20" /></span>
+          <span class="stat-label">Beneficios listos</span>
+          @if (loading()) {
+            <span class="skeleton" style="height: 30px; width: 40%"></span>
+          } @else {
+            <span class="stat-value">{{ pendingBenefits() }}</span>
+          }
         </div>
       </section>
 
-      <section class="block">
-        <h2>Citas de hoy</h2>
-        @if (todayAppointments().length === 0) {
-          <p class="hint">No hay citas programadas para hoy.</p>
-        } @else {
-          <ul class="list">
-            @for (appt of todayAppointments(); track appt.id) {
-              <li>
-                <span class="time">{{ formatTime(appt.scheduled_at) }}</span>
-                <span class="name">{{ appt.client_name }}</span>
-                <span class="status" [class]="'status-' + appt.status">{{ statusLabel(appt.status) }}</span>
-              </li>
+      <div class="dash-grid">
+        <section class="card">
+          <div class="card-head">
+            <h2>Agenda de hoy</h2>
+            <a class="link-sm" routerLink="/admin/citas">
+              Ver agenda
+              <app-icon name="chevron-right" [size]="16" />
+            </a>
+          </div>
+          @if (loading()) {
+            @for (i of [1, 2, 3]; track i) {
+              <div class="skeleton-row">
+                <span class="skeleton" style="width: 64px; height: 34px"></span>
+                <span class="grow"><span class="skeleton" style="height: 14px; width: 60%"></span></span>
+              </div>
             }
-          </ul>
-        }
-      </section>
+          } @else if (appointments().length === 0) {
+            <div class="empty">
+              <span class="empty-icon"><app-icon name="sun" [size]="26" /></span>
+              <span class="empty-title">Día libre</span>
+              <span>No hay citas agendadas para hoy.</span>
+              <a class="btn btn-soft btn-sm" routerLink="/admin/citas/nueva">
+                <app-icon name="plus" [size]="16" />
+                Agendar una cita
+              </a>
+            </div>
+          } @else {
+            <ul class="list">
+              @for (appt of appointments(); track appt.id) {
+                <li>
+                  <a class="list-row" [routerLink]="['/admin/citas', appt.id]">
+                    <span class="time-block">
+                      <span class="time">{{ formatTime(appt.scheduled_at) }}</span>
+                      <span class="dur">{{ formatDuration(appt.duration_min) }}</span>
+                    </span>
+                    <span class="grow">
+                      <span class="list-title truncate" style="display: block">{{ appt.client_name }}</span>
+                      <span class="list-sub truncate" style="display: block">
+                        {{ appt.service_names.join(' · ') || 'Sin servicios' }}
+                      </span>
+                    </span>
+                    <span [class]="'badge ' + statusMeta(appt.status).badge">{{ statusMeta(appt.status).label }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
+          }
+        </section>
 
-      <section class="block">
-        <h2>Alertas de fidelización</h2>
-        @if (loyaltyAlerts().length === 0) {
-          <p class="hint">Sin alertas pendientes.</p>
-        } @else {
-          <ul class="list">
-            @for (alert of loyaltyAlerts(); track alert.client_id) {
-              <li>
-                <span class="name">{{ alert.client_name }}</span>
-                <span class="hint">{{ alert.benefit_pending ? '¡Beneficio listo!' : alert.alert_message }}</span>
-              </li>
-            }
-          </ul>
-        }
-      </section>
-
-      <section class="block">
-        <h2>Cumpleaños hoy 🎂</h2>
-        @if (birthdays().length === 0) {
-          <p class="hint">Ninguno hoy.</p>
-        } @else {
-          <ul class="list">
-            @for (client of birthdays(); track client.id) {
-              <li>
-                <span class="name">{{ client.full_name }}</span>
-                @if (client.phone) {
-                  <a class="whatsapp" [href]="birthdayLink(client)" target="_blank" rel="noopener">Enviar felicitación</a>
+        <div class="stack side">
+          <section class="card">
+            <div class="card-head">
+              <h2>Fidelización</h2>
+              @if (!loading() && alerts().length) {
+                <span class="badge badge-gold">{{ alerts().length }}</span>
+              }
+            </div>
+            @if (loading()) {
+              <div class="skeleton-row"><span class="skeleton" style="height: 14px; width: 70%"></span></div>
+            } @else if (alerts().length === 0) {
+              <p class="side-empty">Sin alertas pendientes por ahora.</p>
+            } @else {
+              <ul class="list">
+                @for (alert of alerts(); track alert.client_id) {
+                  <li>
+                    <a class="list-row" [routerLink]="['/admin/clientas', alert.client_id, 'fidelizacion']">
+                      <span
+                        class="avatar avatar-sm"
+                        [style.background]="avatar(alert.client_name).bg"
+                        [style.color]="avatar(alert.client_name).fg"
+                        >{{ initials(alert.client_name) }}</span
+                      >
+                      <span class="grow">
+                        <span class="list-title truncate" style="display: block">{{ alert.client_name }}</span>
+                        <span class="list-sub" style="display: block">{{ alertText(alert) }}</span>
+                      </span>
+                      <app-icon name="chevron-right" [size]="18" class="chev" />
+                    </a>
+                  </li>
                 }
-              </li>
+              </ul>
             }
-          </ul>
-        }
-      </section>
-    }
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <h2>Cumpleaños de hoy</h2>
+              <app-icon name="cake" [size]="20" class="subtle" />
+            </div>
+            @if (loading()) {
+              <div class="skeleton-row"><span class="skeleton" style="height: 14px; width: 50%"></span></div>
+            } @else if (birthdays().length === 0) {
+              <p class="side-empty">Nadie cumple años hoy.</p>
+            } @else {
+              <ul class="list">
+                @for (client of birthdays(); track client.id) {
+                  <li class="list-row">
+                    <span
+                      class="avatar avatar-sm"
+                      [style.background]="avatar(client.full_name).bg"
+                      [style.color]="avatar(client.full_name).fg"
+                      >{{ initials(client.full_name) }}</span
+                    >
+                    <span class="grow list-title truncate">{{ client.full_name }}</span>
+                    @if (client.phone) {
+                      <a
+                        class="btn btn-whatsapp btn-sm"
+                        [href]="birthdayLink(client)"
+                        target="_blank"
+                        rel="noopener"
+                        aria-label="Felicitar por WhatsApp"
+                      >
+                        <app-icon name="message-circle" [size]="16" />
+                        Felicitar
+                      </a>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        </div>
+      </div>
+    </div>
   `,
   styles: [
     `
-      h1 {
-        margin: 0 0 20px;
+      .dash-grid {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+        align-items: start;
       }
-      h2 {
-        font-size: 16px;
-        margin: 0 0 12px;
-        color: var(--color-text-secondary);
+      .side .list-row {
+        padding: 12px 20px;
       }
-      .hint {
-        color: var(--color-text-hint);
+      .side-empty {
+        padding: 6px 20px 20px;
+        color: var(--c-text-3);
         font-size: 14px;
       }
-      .summary-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: 12px;
-        margin-bottom: 28px;
+      @media (max-width: 1100px) {
+        .dash-grid {
+          grid-template-columns: 1fr;
+        }
       }
-      .card {
-        background: var(--color-surface);
-        border-radius: var(--radius-md);
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .card .label {
-        font-size: 12px;
-        color: var(--color-text-hint);
-      }
-      .card .value {
-        font-size: 22px;
-        font-weight: 800;
-        color: var(--color-primary-dark);
-      }
-      .block {
-        margin-bottom: 28px;
-      }
-      .list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .list li {
-        background: var(--color-surface);
-        border-radius: var(--radius-md);
-        padding: 12px 14px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-      .time {
-        font-weight: 700;
-        color: var(--color-primary-dark);
-        min-width: 70px;
-      }
-      .name {
-        font-weight: 600;
-        flex: 1;
-      }
-      .status {
-        font-size: 12px;
-        padding: 2px 8px;
-        border-radius: 999px;
-        background: var(--color-surface-variant);
-        color: var(--color-text-secondary);
-      }
-      .status-completed {
-        background: var(--color-success);
-        color: white;
-      }
-      .status-in_progress {
-        background: var(--color-info);
-        color: white;
-      }
-      .whatsapp {
-        color: var(--color-whatsapp-dark);
-        font-weight: 700;
-        font-size: 13px;
-        text-decoration: none;
+      @media (max-width: 959px) {
+        .hide-mobile {
+          display: none;
+        }
       }
     `,
   ],
 })
 export class DashboardComponent implements OnInit {
+  private readonly auth = inject(AuthService);
+  private readonly dashboard = inject(DashboardService);
+  private readonly toast = inject(ToastService);
+
+  readonly greetingText = greeting();
+  readonly todayLabel = formatDayLong(new Date());
+
   loading = signal(true);
-  todayAppointments = signal<TodayAppointment[]>([]);
-  loyaltyAlerts = signal<LoyaltyAlertRow[]>([]);
+  appointments = signal<TodayAppointment[]>([]);
+  alerts = signal<LoyaltyAlertRow[]>([]);
   birthdays = signal<BirthdayClient[]>([]);
   monthTotal = signal(0);
   monthCount = signal(0);
 
-  formatCurrency = formatCurrency;
+  pendingBenefits = computed(() => this.alerts().filter((a) => a.benefit_pending).length);
 
-  constructor(private readonly auth: AuthService, private readonly dashboard: DashboardService) {}
+  formatCurrency = formatCurrency;
+  formatTime = formatTime;
+  formatDuration = formatDuration;
+  statusMeta = statusMeta;
+  initials = initials;
+  avatar = avatarColors;
 
   async ngOnInit() {
     const ownerId = this.auth.currentUser()?.id;
     if (!ownerId) return;
 
     const now = new Date();
-    const [appointments, alerts, birthdays, summary] = await Promise.all([
-      this.dashboard.getTodayAppointments(ownerId),
-      this.dashboard.getLoyaltyAlerts(ownerId),
-      this.dashboard.getBirthdaysToday(ownerId),
-      this.dashboard.getMonthSummary(ownerId, now.getFullYear(), now.getMonth() + 1),
-    ]);
-
-    this.todayAppointments.set(appointments);
-    this.loyaltyAlerts.set(alerts);
-    this.birthdays.set(birthdays);
-    this.monthTotal.set(summary.total);
-    this.monthCount.set(summary.count);
-    this.loading.set(false);
+    try {
+      const [appointments, alerts, birthdays, summary] = await Promise.all([
+        this.dashboard.getTodayAppointments(ownerId),
+        this.dashboard.getLoyaltyAlerts(ownerId),
+        this.dashboard.getBirthdaysToday(ownerId),
+        this.dashboard.getMonthSummary(ownerId, now.getFullYear(), now.getMonth() + 1),
+      ]);
+      this.appointments.set(appointments);
+      this.alerts.set(alerts);
+      this.birthdays.set(birthdays);
+      this.monthTotal.set(summary.total);
+      this.monthCount.set(summary.count);
+    } catch {
+      this.toast.error('No se pudo cargar el resumen. Revisa tu conexión.');
+    } finally {
+      this.loading.set(false);
+    }
   }
 
-  formatTime(iso: string): string {
-    return new Intl.DateTimeFormat('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true }).format(
-      new Date(iso)
-    );
-  }
-
-  statusLabel(status: string): string {
-    const labels: Record<string, string> = {
-      scheduled: 'Agendada',
-      in_progress: 'En curso',
-      completed: 'Completada',
-      no_show: 'No asistió',
-    };
-    return labels[status] ?? status;
+  alertText(alert: LoyaltyAlertRow): string {
+    if (alert.benefit_pending) {
+      return alert.pending_benefit_type === 'gift'
+        ? 'Obsequio listo para su próxima cita'
+        : `${alert.pending_benefit_value}% de descuento listo`;
+    }
+    return alert.alert_message ?? 'A una sesión de su próximo beneficio';
   }
 
   birthdayLink(client: BirthdayClient): string {
     return buildBirthdayUri(client.phone ?? '', client.full_name);
+  }
+
+  async copyBookingLink() {
+    const ok = await copyToClipboard(bookingUrl());
+    if (ok) this.toast.success('Link de reservas copiado');
+    else this.toast.show(bookingUrl(), 'info');
   }
 }

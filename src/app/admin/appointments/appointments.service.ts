@@ -1,12 +1,13 @@
 import { Injectable } from '@angular/core';
 import { SupabaseService } from '../../core/services/supabase.service';
-import { AppointmentStatus, Database } from '../../core/models/database.types';
+import { Database } from '../../core/models/database.types';
 
 export type AppointmentRow = Database['public']['Tables']['appointments']['Row'];
 
 export interface ClientAppointment extends AppointmentRow {
   client_name: string;
   client_phone: string | null;
+  service_names: string[];
 }
 
 export interface AppointmentServiceLine {
@@ -37,7 +38,7 @@ export class AppointmentsService {
 
     const { data, error } = await this.supabase.client
       .from('appointments')
-      .select('*, clients(full_name, phone)')
+      .select('*, clients(full_name, phone), appointment_services(services(name))')
       .eq('owner_id', ownerId)
       .gte('scheduled_at', start.toISOString())
       .lte('scheduled_at', end.toISOString())
@@ -50,7 +51,7 @@ export class AppointmentsService {
   async getClientAppointments(clientId: string): Promise<ClientAppointment[]> {
     const { data, error } = await this.supabase.client
       .from('appointments')
-      .select('*, clients(full_name, phone)')
+      .select('*, clients(full_name, phone), appointment_services(services(name))')
       .eq('client_id', clientId)
       .eq('status', 'completed')
       .order('scheduled_at', { ascending: false });
@@ -142,23 +143,21 @@ export class AppointmentsService {
       ...(row as AppointmentRow),
       client_name: row.clients?.full_name ?? 'Clienta',
       client_phone: row.clients?.phone ?? null,
+      service_names: (row.appointment_services ?? []).map((s: any) => s.services?.name).filter(Boolean),
     };
   }
 
-  // SLOT_UNAVAILABLE is raised by admin_create_appointment / the DB exclusion
-  // constraint when another appointment already occupies that time range.
-  private friendlyError(error: { message: string }): Error {
-    if (error.message?.includes('SLOT_UNAVAILABLE')) {
-      return new Error('Ese horario ya no está disponible. Elige otra hora.');
+  // SLOT_UNAVAILABLE is raised by admin_create_appointment; a plain UPDATE
+  // (reschedule) hits the appointments_no_overlap exclusion constraint
+  // directly and surfaces as SQLSTATE 23P01 instead.
+  private friendlyError(error: { message: string; code?: string }): Error {
+    if (
+      error.message?.includes('SLOT_UNAVAILABLE') ||
+      error.code === '23P01' ||
+      error.message?.includes('appointments_no_overlap')
+    ) {
+      return new Error('Ese horario se cruza con otra cita. Elige otra hora.');
     }
     return new Error(error.message);
   }
 }
-
-export const STATUS_LABELS: Record<AppointmentStatus, string> = {
-  scheduled: 'Agendada',
-  in_progress: 'En curso',
-  completed: 'Completada',
-  cancelled: 'Cancelada',
-  no_show: 'No asistió',
-};

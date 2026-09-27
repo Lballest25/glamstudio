@@ -1,0 +1,365 @@
+<div class="booking">
+  <header class="hero">
+    <div class="hero-inner">
+      <img src="logo.png" alt="GlamStudio" class="hero-logo" />
+      <div>
+        <p class="hero-eyebrow">Reserva en línea</p>
+        <h1 class="hero-title">GlamStudio</h1>
+        <p class="hero-sub">Pestañas · Cejas · Depilación · Tratamientos</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="panel">
+    @if (step() !== 'done') {
+      <ol class="stepper" aria-label="Pasos de la reserva">
+        @for (s of steps; track s.key; let i = $index) {
+          <li [class.is-done]="i < stepIndex()" [class.is-current]="i === stepIndex()">
+            <button
+              type="button"
+              [disabled]="i >= stepIndex()"
+              (click)="goTo(s.key)"
+              [attr.aria-current]="i === stepIndex() ? 'step' : null"
+            >
+              <span class="dot">
+                @if (i < stepIndex()) {
+                  <app-icon name="check" [size]="14" [stroke]="3" />
+                } @else {
+                  <span>{{ i + 1 }}</span>
+                }
+              </span>
+              <span class="label">{{ s.label }}</span>
+            </button>
+          </li>
+        }
+      </ol>
+    }
+
+    @if (errorMessage()) {
+      <div class="alert alert-danger error">
+        <app-icon name="alert-circle" [size]="18" />
+        <span>{{ errorMessage() }}</span>
+      </div>
+    }
+
+    @switch (step()) {
+      @case ('services') {
+        <section class="step fade-in">
+          <div class="step-head">
+            <h2>¿Qué te quieres hacer?</h2>
+            <p>Puedes elegir uno o varios servicios.</p>
+          </div>
+
+          @if (loadingServices()) {
+            <div class="service-list">
+              @for (i of [1, 2, 3, 4, 5]; track i) {
+                <span class="skeleton" style="height: 74px; border-radius: 20px"></span>
+              }
+            </div>
+          } @else if (loadError()) {
+            <div class="empty">
+              <span class="empty-icon"><app-icon name="alert-circle" [size]="26" /></span>
+              <span class="empty-title">No pudimos cargar los servicios</span>
+              <span>Revisa tu conexión e intenta de nuevo.</span>
+              <button type="button" class="btn btn-soft btn-sm" (click)="loadServices()">Reintentar</button>
+            </div>
+          } @else {
+            <div class="chips category-chips" aria-label="Filtrar por categoría">
+              <button type="button" class="chip" [class.is-active]="categoryFilter() === 'all'" (click)="categoryFilter.set('all')">
+                Todos
+              </button>
+              @for (c of categories(); track c) {
+                <button type="button" class="chip" [class.is-active]="categoryFilter() === c" (click)="categoryFilter.set(c)">
+                  <app-icon [name]="meta(c).icon" [size]="15" />
+                  {{ meta(c).label }}
+                </button>
+              }
+            </div>
+
+            @for (group of groups(); track group.category) {
+              <div class="group">
+                <p class="group-title">{{ group.label }}</p>
+                <div class="service-list">
+                  @for (s of group.items; track s.id) {
+                    <button
+                      type="button"
+                      class="service"
+                      [class.is-selected]="isSelected(s.id)"
+                      [attr.aria-pressed]="isSelected(s.id)"
+                      (click)="toggleService(s.id)"
+                    >
+                      <span class="service-icon"><app-icon [name]="meta(s.category).icon" [size]="20" /></span>
+                      <span class="service-body">
+                        <span class="service-name">{{ s.name }}</span>
+                        @if (s.description) {
+                          <span class="service-desc">{{ s.description }}</span>
+                        }
+                        <span class="service-meta">
+                          <app-icon name="clock" [size]="13" />
+                          {{ formatDuration(s.duration_min) }}
+                          <strong class="meta-price">· {{ formatCurrency(s.base_price) }}</strong>
+                        </span>
+                      </span>
+                      <span class="service-price">{{ formatCurrency(s.base_price) }}</span>
+                      <span class="service-check"><app-icon name="check" [size]="14" [stroke]="3" /></span>
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          }
+        </section>
+      }
+
+      @case ('slot') {
+        <section class="step fade-in">
+          <div class="step-head">
+            <h2>Elige día y hora</h2>
+            <p>Duración aproximada: {{ formatDuration(totalDuration()) }}</p>
+          </div>
+
+          <div class="days" aria-label="Día de la cita">
+            @for (d of days; track d.key) {
+              <button
+                type="button"
+                class="day"
+                [class.is-active]="d.key === selectedDay()"
+                [attr.aria-pressed]="d.key === selectedDay()"
+                (click)="selectDay(d.key)"
+              >
+                <span class="day-week">{{ d.weekday }}</span>
+                <span class="day-num">{{ d.day }}</span>
+                <span class="day-month">{{ d.month }}</span>
+              </button>
+            }
+          </div>
+
+          <p class="day-title">{{ selectedDayLabel() }}</p>
+
+          @if (loadingSlots()) {
+            <div class="slot-grid">
+              @for (i of [1, 2, 3, 4, 5, 6, 7, 8]; track i) {
+                <span class="skeleton" style="height: 46px; border-radius: 14px"></span>
+              }
+            </div>
+          } @else if (slots().length === 0) {
+            <div class="empty compact">
+              <span class="empty-icon"><app-icon name="calendar" [size]="24" /></span>
+              <span class="empty-title">No hay horarios este día</span>
+              <span>Prueba con otro día de la lista.</span>
+            </div>
+          } @else {
+            @for (g of slotGroups(); track g.key) {
+              <div class="slot-group">
+                <p class="group-title"><app-icon [name]="g.icon" [size]="15" /> {{ g.label }}</p>
+                <div class="slot-grid">
+                  @for (slot of g.slots; track slot) {
+                    <button
+                      type="button"
+                      class="slot"
+                      [class.is-active]="selectedSlot() === slot"
+                      [attr.aria-pressed]="selectedSlot() === slot"
+                      (click)="selectedSlot.set(slot)"
+                    >
+                      {{ formatTime(slot) }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          }
+        </section>
+      }
+
+      @case ('contact') {
+        <section class="step fade-in">
+          <div class="step-head">
+            <h2>Tus datos</h2>
+            <p>Solo los usamos para contactarte sobre tu cita.</p>
+          </div>
+
+          <form class="stack" (ngSubmit)="next()">
+            <label class="field">
+              <span class="field-label">Nombre completo</span>
+              <span class="input-icon">
+                <app-icon name="user" [size]="18" />
+                <input class="input" name="name" [(ngModel)]="name" autocomplete="name" placeholder="Ej. Laura Gómez" required />
+              </span>
+            </label>
+
+            <label class="field">
+              <span class="field-label">Celular (WhatsApp)</span>
+              <span class="input-icon">
+                <app-icon name="phone" [size]="18" />
+                <input
+                  class="input"
+                  name="phone"
+                  type="tel"
+                  inputmode="tel"
+                  autocomplete="tel"
+                  [(ngModel)]="phone"
+                  (ngModelChange)="onPhoneChange()"
+                  (blur)="phoneTouched.set(true)"
+                  placeholder="300 123 4567"
+                  required
+                />
+              </span>
+              @if (phoneTouched() && !phoneValid()) {
+                <span class="field-error">Ingresa un número de celular válido.</span>
+              }
+            </label>
+
+            <label class="field">
+              <span class="field-label">Correo <span class="optional">(opcional)</span></span>
+              <span class="input-icon">
+                <app-icon name="mail" [size]="18" />
+                <input
+                  class="input"
+                  name="email"
+                  type="email"
+                  inputmode="email"
+                  autocomplete="email"
+                  [(ngModel)]="email"
+                  placeholder="tu@correo.com"
+                />
+              </span>
+            </label>
+
+            <button type="submit" hidden></button>
+          </form>
+        </section>
+      }
+
+      @case ('confirm') {
+        <section class="step fade-in">
+          <div class="step-head">
+            <h2>Revisa y confirma</h2>
+            <p>Verifica que todo esté bien antes de agendar.</p>
+          </div>
+
+          <div class="summary">
+            <div class="summary-when">
+              <span class="when-icon"><app-icon name="calendar" [size]="22" /></span>
+              <div>
+                <p class="when-day">{{ selectedDayLabel() }}</p>
+                <p class="when-time">{{ formatTime(selectedSlot()!) }} · {{ formatDuration(totalDuration()) }}</p>
+              </div>
+            </div>
+            <ul class="summary-lines">
+              @for (s of selectedServices(); track s.id) {
+                <li>
+                  <span>{{ s.name }}</span>
+                  <span class="num">{{ formatCurrency(s.base_price) }}</span>
+                </li>
+              }
+            </ul>
+            <div class="summary-total">
+              <span>Total</span>
+              <span class="num">{{ formatCurrency(subtotal()) }}</span>
+            </div>
+            <div class="summary-contact">
+              <app-icon name="user" [size]="16" />
+              <span class="truncate">{{ name }} · {{ phone }}</span>
+            </div>
+          </div>
+
+          @if (hasPendingBenefit()) {
+            <div class="teaser">
+              <span class="teaser-icon"><app-icon name="gift" [size]="22" /></span>
+              <div>
+                <p class="teaser-title">¡Tienes descuentos desbloqueados!</p>
+                <p class="teaser-text">Acércate 10 minutos antes de tu cita para descubrirlos con más detalle.</p>
+              </div>
+            </div>
+          }
+
+          <p class="note">
+            <app-icon name="info" [size]="15" />
+            Pagas directamente en el estudio el día de tu cita.
+          </p>
+        </section>
+      }
+
+      @case ('done') {
+        @if (result(); as r) {
+          <section class="step done fade-in">
+            <div class="done-check"><app-icon name="check" [size]="36" [stroke]="3" /></div>
+            <h2>¡Cita confirmada!</h2>
+            <p class="done-sub">Te esperamos, {{ greetingName() }}.</p>
+
+            <div class="summary">
+              <div class="summary-when">
+                <span class="when-icon"><app-icon name="calendar-check" [size]="22" /></span>
+                <div>
+                  <p class="when-day">{{ formatDayLong(r.scheduledAt) }}</p>
+                  <p class="when-time">{{ formatTime(r.scheduledAt) }} · {{ formatDuration(totalDuration()) }}</p>
+                </div>
+              </div>
+              <ul class="summary-lines">
+                @for (s of selectedServices(); track s.id) {
+                  <li>
+                    <span>{{ s.name }}</span>
+                    <span class="num">{{ formatCurrency(s.base_price) }}</span>
+                  </li>
+                }
+              </ul>
+              <div class="summary-total">
+                <span>Total</span>
+                <span class="num">{{ formatCurrency(r.subtotal) }}</span>
+              </div>
+            </div>
+
+            @if (r.hasPendingBenefit) {
+              <div class="teaser">
+                <span class="teaser-icon"><app-icon name="gift" [size]="22" /></span>
+                <div>
+                  <p class="teaser-title">¡Tienes descuentos desbloqueados!</p>
+                  <p class="teaser-text">Acércate 10 minutos antes de tu cita para descubrirlos con más detalle.</p>
+                </div>
+              </div>
+            }
+
+            <div class="done-actions">
+              <a class="btn btn-lg btn-block" [href]="calendarLink()" target="_blank" rel="noopener">
+                <app-icon name="calendar-plus" [size]="20" />
+                Agregar a mi calendario
+              </a>
+              <button type="button" class="btn btn-ghost btn-block" (click)="reset()">Agendar otra cita</button>
+            </div>
+          </section>
+        }
+      }
+    }
+  </main>
+
+  <footer class="foot">
+    GlamStudio · <a routerLink="/admin/login">Acceso del estudio</a>
+  </footer>
+
+  @if (step() !== 'done') {
+    <div class="bar">
+      <div class="bar-inner">
+        @if (step() === 'confirm') {
+          <button type="button" class="btn btn-primary btn-lg btn-block" [disabled]="confirming()" (click)="confirmBooking()">
+            @if (confirming()) {
+              <span class="spinner"></span>
+              Agendando…
+            } @else {
+              <app-icon name="check" [size]="20" />
+              Confirmar cita
+            }
+          </button>
+        } @else {
+          <div class="bar-info">
+            <span class="bar-main num">{{ barMain() }}</span>
+            <span class="bar-sub">{{ barSub() }}</span>
+          </div>
+          <button type="button" class="btn btn-primary btn-lg" [disabled]="!canContinue()" (click)="next()">
+            Continuar
+            <app-icon name="arrow-right" [size]="18" />
+          </button>
+        }
+      </div>
+    </div>
+  }
+</div>

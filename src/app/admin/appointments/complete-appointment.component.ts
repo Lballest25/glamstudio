@@ -1,145 +1,251 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { ToastService } from '../../core/services/toast.service';
 import { applyDiscount, formatCurrency } from '../../core/utils/currency.util';
+import { formatDayLong, formatTime } from '../../core/utils/format.util';
+import { PAYMENT_OPTIONS, PaymentChoice } from '../../core/utils/labels';
+import { IconComponent } from '../../shared/components/icon.component';
 import { LoyaltyProgressRow, LoyaltyService } from '../loyalty/loyalty.service';
 import { AppointmentDetail, AppointmentsService } from './appointments.service';
-
-type PaymentMethod = 'cash' | 'transfer' | 'card';
 
 @Component({
   selector: 'app-complete-appointment',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink, IconComponent],
   template: `
-    @if (appointment(); as appt) {
-      <h1>Completar y cobrar</h1>
-      <p class="hint">{{ appt.client_name }} · {{ formatDate(appt.scheduled_at) }}</p>
+    <div class="page page-narrow fade-in">
+      @if (appointment(); as a) {
+        <a class="back-link" [routerLink]="['/admin/citas', a.id]">
+          <app-icon name="arrow-left" [size]="18" />
+          Detalle de la cita
+        </a>
 
-      @if (isGift()) {
-        <div class="card badge-gold" style="max-width:420px; margin:16px 0; text-align:center;">
-          <strong>🎁 Sesión de obsequio</strong>
-          <p class="hint">Esta clienta completó su ciclo de fidelización — esta sesión es gratis.</p>
-        </div>
-      } @else if (discountPct() > 0) {
-        <div class="card badge-gold" style="max-width:420px; margin:16px 0; text-align:center;">
-          <strong>¡{{ discountPct() }}% de descuento aplicado! 🎉</strong>
-        </div>
-      }
+        <header>
+          <h1>Cobrar cita</h1>
+          <p class="page-subtitle">{{ a.client_name }} · {{ formatDayLong(a.scheduled_at) }}, {{ formatTime(a.scheduled_at) }}</p>
+        </header>
 
-      <div class="card" style="max-width:420px;">
-        <p><strong>Subtotal:</strong> {{ formatCurrency(subtotal()) }}</p>
-        @if (discountPct() > 0) {
-          <p><strong>Descuento:</strong> -{{ discountPct() }}%</p>
+        @if (isGift()) {
+          <section class="benefit">
+            <span class="benefit-icon"><app-icon name="gift" [size]="26" /></span>
+            <div>
+              <p class="benefit-title">Sesión de obsequio</p>
+              <p class="benefit-text">{{ a.client_name }} completó su ciclo de fidelización. Esta sesión no tiene costo.</p>
+            </div>
+          </section>
+        } @else if (discountPct() > 0) {
+          <section class="benefit">
+            <span class="benefit-icon"><app-icon name="percent" [size]="24" /></span>
+            <div>
+              <p class="benefit-title">{{ discountPct() }}% de descuento de fidelización</p>
+              <p class="benefit-text">Se aplica automáticamente en esta cita.</p>
+            </div>
+          </section>
         }
-        <p style="font-size:20px; font-weight:800;">Total: {{ formatCurrency(total()) }}</p>
+
+        <section class="card receipt">
+          <ul class="list">
+            @for (line of a.services; track line.service_id) {
+              <li class="list-row">
+                <span class="grow">{{ line.service_name }}@if (line.quantity > 1) { × {{ line.quantity }} }</span>
+                <span class="num">{{ formatCurrency(line.price_at_time * line.quantity) }}</span>
+              </li>
+            }
+          </ul>
+          <div class="totals">
+            @if (discountPct() > 0 || isGift()) {
+              <div class="row-between muted"><span>Subtotal</span><span class="num">{{ formatCurrency(subtotal()) }}</span></div>
+              <div class="row-between discount">
+                <span>{{ isGift() ? 'Obsequio' : 'Descuento ' + discountPct() + '%' }}</span>
+                <span class="num">−{{ formatCurrency(subtotal() - total()) }}</span>
+              </div>
+            }
+            <div class="row-between grand">
+              <span>Total a cobrar</span>
+              <span class="num">{{ formatCurrency(total()) }}</span>
+            </div>
+          </div>
+        </section>
 
         @if (!isGift()) {
-          <label class="field">Método de pago</label>
-          <div style="display:flex; gap:8px; margin-bottom:14px;">
-            <button class="btn" [class.btn-primary]="method() === 'cash'" (click)="method.set('cash')">Efectivo</button>
-            <button class="btn" [class.btn-primary]="method() === 'transfer'" (click)="method.set('transfer')">Transferencia</button>
-            <button class="btn" [class.btn-primary]="method() === 'card'" (click)="method.set('card')">Tarjeta</button>
-          </div>
-
-          @if (method() === 'transfer') {
-            <label class="field">
-              Referencia
-              <input type="text" [(ngModel)]="reference" name="reference" />
-            </label>
-          }
+          <section class="card card-pad stack">
+            <h2>Método de pago</h2>
+            <div class="segmented" role="radiogroup" aria-label="Método de pago">
+              @for (option of paymentOptions; track option.value) {
+                <button
+                  type="button"
+                  role="radio"
+                  [attr.aria-checked]="method() === option.value"
+                  [class.is-active]="method() === option.value"
+                  (click)="method.set(option.value)"
+                >
+                  <app-icon [name]="option.icon" [size]="17" />
+                  <span class="opt-label">{{ option.label }}</span>
+                </button>
+              }
+            </div>
+            @if (method() === 'transfer') {
+              <label class="field">
+                <span class="field-label">Referencia <span class="optional">(opcional)</span></span>
+                <input class="input" [(ngModel)]="reference" placeholder="Ej. comprobante Nequi" />
+              </label>
+            }
+          </section>
         }
 
         @if (errorMessage()) {
-          <p class="error-text">{{ errorMessage() }}</p>
+          <div class="alert alert-danger">
+            <app-icon name="alert-circle" [size]="18" />
+            <span>{{ errorMessage() }}</span>
+          </div>
         }
 
-        <button class="btn btn-primary" [disabled]="saving()" (click)="confirm()">
-          {{ saving() ? 'Guardando…' : isGift() ? 'Confirmar obsequio' : 'Confirmar cobro' }}
+        <button type="button" class="btn btn-primary btn-lg btn-block" [disabled]="saving()" (click)="confirm(a)">
+          @if (saving()) {
+            <span class="spinner"></span>
+          } @else {
+            <app-icon name="check" [size]="20" />
+          }
+          {{ isGift() ? 'Confirmar obsequio' : 'Confirmar cobro de ' + formatCurrency(total()) }}
         </button>
-      </div>
-    } @else if (loading()) {
-      <p class="hint">Cargando…</p>
-    } @else {
-      <p class="empty-state">No se encontró la cita.</p>
-    }
+      } @else if (loading()) {
+        <div class="card card-pad stack">
+          <span class="skeleton" style="height: 34px; width: 50%"></span>
+          <span class="skeleton" style="height: 120px"></span>
+        </div>
+      } @else {
+        <div class="card empty">
+          <span class="empty-icon"><app-icon name="receipt" [size]="26" /></span>
+          <span class="empty-title">No encontramos esta cita</span>
+        </div>
+      }
+    </div>
   `,
+  styles: [
+    `
+      .benefit {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 18px;
+        border-radius: var(--r-lg);
+        background: linear-gradient(135deg, #fff7e0 0%, #fbe9b7 100%);
+        border: 1px solid #f1d98f;
+        color: #5c4210;
+      }
+      .benefit-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: var(--r-md);
+        display: grid;
+        place-items: center;
+        background: #fff;
+        color: var(--c-gold);
+        flex-shrink: 0;
+      }
+      .benefit-title {
+        font-weight: 800;
+        font-size: 16px;
+        color: #3f2c05;
+      }
+      .benefit-text {
+        font-size: 14px;
+        margin-top: 2px;
+      }
+      .receipt .list-row {
+        padding: 12px 20px;
+      }
+      .totals {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 14px 20px 18px;
+        border-top: 1px dashed var(--c-border-strong);
+        background: var(--c-surface-2);
+      }
+      .discount {
+        color: var(--c-gold);
+        font-weight: 700;
+      }
+      .grand {
+        font-weight: 800;
+        font-size: 20px;
+      }
+      @media (max-width: 420px) {
+        .opt-label {
+          font-size: 12px;
+        }
+      }
+    `,
+  ],
 })
 export class CompleteAppointmentComponent implements OnInit {
+  private readonly auth = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly appointmentsService = inject(AppointmentsService);
+  private readonly loyaltyService = inject(LoyaltyService);
+  private readonly toast = inject(ToastService);
+
+  readonly paymentOptions = PAYMENT_OPTIONS;
+
   loading = signal(true);
   saving = signal(false);
   errorMessage = signal<string | null>(null);
   appointment = signal<AppointmentDetail | null>(null);
   progress = signal<LoyaltyProgressRow | null>(null);
-  method = signal<PaymentMethod>('cash');
+  method = signal<PaymentChoice>('cash');
   reference = '';
 
-  formatCurrency = formatCurrency;
+  subtotal = computed(() =>
+    (this.appointment()?.services ?? []).reduce((sum, s) => sum + s.price_at_time * s.quantity, 0)
+  );
+  isGift = computed(() => {
+    const p = this.progress();
+    return !!p?.benefit_pending && p.pending_benefit_type === 'gift';
+  });
+  discountPct = computed(() => {
+    const p = this.progress();
+    return p?.benefit_pending && p.pending_benefit_type === 'discount' ? (p.pending_benefit_value ?? 0) : 0;
+  });
+  total = computed(() => (this.isGift() ? 0 : applyDiscount(this.subtotal(), this.discountPct())));
 
-  constructor(
-    private readonly auth: AuthService,
-    private readonly route: ActivatedRoute,
-    private readonly router: Router,
-    private readonly appointmentsService: AppointmentsService,
-    private readonly loyaltyService: LoyaltyService
-  ) {}
+  formatCurrency = formatCurrency;
+  formatDayLong = formatDayLong;
+  formatTime = formatTime;
 
   async ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
     const ownerId = this.auth.currentUser()?.id;
     if (!id || !ownerId) return;
 
-    const appt = await this.appointmentsService.getAppointmentById(id);
-    this.appointment.set(appt);
-    if (appt) {
-      this.progress.set(await this.loyaltyService.getProgress(ownerId, appt.client_id));
+    try {
+      const appt = await this.appointmentsService.getAppointmentById(id);
+      this.appointment.set(appt);
+      if (appt) this.progress.set(await this.loyaltyService.getProgress(ownerId, appt.client_id));
+    } catch {
+      this.toast.error('No se pudo cargar la cita.');
+    } finally {
+      this.loading.set(false);
     }
-    this.loading.set(false);
   }
 
-  subtotal(): number {
-    const appt = this.appointment();
-    if (!appt) return 0;
-    return appt.services.reduce((sum, s) => sum + s.price_at_time * s.quantity, 0);
-  }
-
-  isGift(): boolean {
-    const p = this.progress();
-    return !!p?.benefit_pending && p.pending_benefit_type === 'gift';
-  }
-
-  discountPct(): number {
-    const p = this.progress();
-    if (p?.benefit_pending && p.pending_benefit_type === 'discount') return p.pending_benefit_value ?? 0;
-    return 0;
-  }
-
-  total(): number {
-    if (this.isGift()) return 0;
-    return applyDiscount(this.subtotal(), this.discountPct());
-  }
-
-  formatDate(iso: string): string {
-    return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
-  }
-
-  async confirm() {
-    const appt = this.appointment();
-    if (!appt) return;
-
+  async confirm(a: AppointmentDetail) {
     this.saving.set(true);
     this.errorMessage.set(null);
     try {
       await this.appointmentsService.completeAppointmentAndPay({
-        appointmentId: appt.id,
+        appointmentId: a.id,
         discountPct: this.discountPct(),
         subtotal: this.subtotal(),
         totalAmount: this.total(),
         paymentMethod: this.method(),
-        paymentReference: this.method() === 'transfer' ? this.reference : null,
+        paymentReference: this.method() === 'transfer' ? this.reference.trim() || null : null,
       });
-      await this.router.navigate(['/admin/citas', appt.id]);
+      this.toast.success(this.isGift() ? 'Obsequio registrado' : 'Cobro registrado');
+      await this.router.navigate(['/admin/citas', a.id]);
     } catch (error) {
       this.errorMessage.set(error instanceof Error ? error.message : 'No se pudo completar la cita.');
     } finally {

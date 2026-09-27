@@ -5,8 +5,10 @@ export interface TodayAppointment {
   id: string;
   scheduled_at: string;
   status: string;
+  duration_min: number | null;
   client_name: string;
   client_phone: string | null;
+  service_names: string[];
 }
 
 export interface LoyaltyAlertRow {
@@ -41,7 +43,7 @@ export class DashboardService {
 
     const { data, error } = await this.supabase.client
       .from('appointments')
-      .select('id, scheduled_at, status, clients(full_name, phone)')
+      .select('id, scheduled_at, status, duration_min, clients(full_name, phone), appointment_services(services(name))')
       .eq('owner_id', ownerId)
       .neq('status', 'cancelled')
       .gte('scheduled_at', start.toISOString())
@@ -54,8 +56,10 @@ export class DashboardService {
       id: row.id,
       scheduled_at: row.scheduled_at,
       status: row.status,
+      duration_min: row.duration_min ?? null,
       client_name: row.clients?.full_name ?? 'Clienta',
       client_phone: row.clients?.phone ?? null,
+      service_names: (row.appointment_services ?? []).map((s: any) => s.services?.name).filter(Boolean),
     }));
   }
 
@@ -95,8 +99,8 @@ export class DashboardService {
     const today = new Date();
     return (data ?? [])
       .filter((c: any) => {
-        const d = new Date(c.birth_date);
-        return d.getUTCMonth() === today.getMonth() && d.getUTCDate() === today.getDate();
+        const [, month, day] = String(c.birth_date).split('-').map(Number);
+        return month === today.getMonth() + 1 && day === today.getDate();
       })
       .map((c: any) => ({ id: c.id, full_name: c.full_name, phone: c.phone }));
   }

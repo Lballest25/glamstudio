@@ -1,150 +1,272 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
-import { AuthService } from '../../core/services/auth.service';
-import { formatCurrency } from '../../core/utils/currency.util';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ExpenseCategory } from '../../core/models/database.types';
-import { EXPENSE_CATEGORY_LABELS, ExpenseInput, ExpenseRow, ExpensesService } from './expenses.service';
+import { AuthService } from '../../core/services/auth.service';
+import { ToastService } from '../../core/services/toast.service';
+import { formatCurrency } from '../../core/utils/currency.util';
+import { formatDateMedium, formatMonthYear, parseISODate, plural, toLocalISODate } from '../../core/utils/format.util';
+import { EXPENSE_CATEGORIES, expenseMeta } from '../../core/utils/labels';
+import { IconComponent } from '../../shared/components/icon.component';
+import { SheetComponent } from '../../shared/components/sheet.component';
+import { ExpenseRow, ExpensesService } from './expenses.service';
 
 @Component({
   selector: 'app-expenses',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink, IconComponent, SheetComponent],
   template: `
-    <div class="page-header">
-      <h1>Gastos — {{ monthLabel() }}</h1>
-      <button class="btn btn-primary" (click)="formVisible.set(!formVisible())">+ Nuevo gasto</button>
-    </div>
+    <div class="page page-narrow fade-in">
+      <a class="back-link" routerLink="/admin/reportes">
+        <app-icon name="arrow-left" [size]="18" />
+        Reportes
+      </a>
 
-    <div class="card" style="max-width:320px; margin-bottom:20px; text-align:center;">
-      <span class="hint">Total del mes</span>
-      <div style="font-size:22px; font-weight:800; color: var(--color-error);">{{ formatCurrency(total()) }}</div>
-    </div>
-
-    @if (formVisible()) {
-      <form class="card" style="max-width:420px; margin-bottom:20px;" (ngSubmit)="save()">
-        <label class="field">
-          Descripción
-          <input type="text" name="description" [(ngModel)]="form.description" required />
-        </label>
-        <label class="field">
-          Categoría
-          <select name="category" [(ngModel)]="form.category">
-            @for (cat of categories; track cat) {
-              <option [value]="cat">{{ categoryLabel(cat) }}</option>
-            }
-          </select>
-        </label>
-        <label class="field">
-          Monto
-          <input type="number" name="amount" min="1" [(ngModel)]="form.amount" required />
-        </label>
-        <label class="field">
-          Fecha
-          <input type="date" name="spent_at" [(ngModel)]="spentAtDate" required />
-        </label>
-        <div style="display:flex; gap:8px;">
-          <button type="submit" class="btn btn-primary" [disabled]="saving()">Guardar</button>
-          <button type="button" class="btn" (click)="formVisible.set(false)">Cancelar</button>
+      <header class="page-header">
+        <div>
+          <h1>Gastos</h1>
+          <p class="page-subtitle">Lo que invertiste en el estudio este mes.</p>
         </div>
-      </form>
-    }
+        <button type="button" class="btn btn-primary" (click)="openForm()">
+          <app-icon name="plus" [size]="18" />
+          Nuevo gasto
+        </button>
+      </header>
 
-    @if (loading()) {
-      <p class="hint">Cargando…</p>
-    } @else if (expenses().length === 0) {
-      <p class="empty-state">Sin gastos registrados este mes.</p>
-    } @else {
-      <ul class="list">
-        @for (expense of expenses(); track expense.id) {
-          <li class="list-item">
-            <span style="flex:1;">
-              <div style="font-weight:600;">{{ expense.description }}</div>
-              <div class="hint">{{ categoryLabel(expense.category) }} · {{ formatDate(expense.spent_at) }}</div>
-            </span>
-            <span style="font-weight:700;">{{ formatCurrency(expense.amount) }}</span>
-            <button class="btn btn-sm btn-danger" (click)="remove(expense)">Eliminar</button>
-          </li>
+      <div class="month-switch" style="align-self: flex-start">
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" (click)="shiftMonth(-1)" aria-label="Mes anterior">
+          <app-icon name="chevron-left" [size]="18" />
+        </button>
+        <strong>{{ monthLabel() }}</strong>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" [disabled]="isCurrentMonth()" (click)="shiftMonth(1)" aria-label="Mes siguiente">
+          <app-icon name="chevron-right" [size]="18" />
+        </button>
+      </div>
+
+      <section class="card card-pad total-card">
+        <div>
+          <span class="stat-label">Total del mes</span>
+          <div class="stat-value total">{{ formatCurrency(total()) }}</div>
+          <span class="subtle small">{{ plural(expenses().length, 'registro') }}</span>
+        </div>
+        @if (breakdown().length) {
+          <div class="breakdown">
+            @for (b of breakdown(); track b.category) {
+              <span class="badge">
+                <app-icon [name]="meta(b.category).icon" [size]="13" />
+                {{ meta(b.category).label }} · {{ formatCurrency(b.total) }}
+              </span>
+            }
+          </div>
         }
-      </ul>
-    }
+      </section>
+
+      <section class="card">
+        @if (loading()) {
+          @for (i of [1, 2, 3]; track i) {
+            <div class="skeleton-row">
+              <span class="skeleton" style="width: 42px; height: 42px; border-radius: 14px"></span>
+              <span class="grow"><span class="skeleton" style="height: 14px; width: 55%"></span></span>
+            </div>
+          }
+        } @else if (expenses().length === 0) {
+          <div class="empty">
+            <span class="empty-icon"><app-icon name="receipt" [size]="26" /></span>
+            <span class="empty-title">Sin gastos este mes</span>
+            <span>Registrar tus gastos te permite ver tu ganancia real.</span>
+          </div>
+        } @else {
+          <ul class="list">
+            @for (expense of expenses(); track expense.id) {
+              <li class="list-row">
+                <span class="tile tone-danger"><app-icon [name]="meta(expense.category).icon" [size]="20" /></span>
+                <span class="grow">
+                  <span class="list-title truncate" style="display: block">{{ expense.description }}</span>
+                  <span class="list-sub" style="display: block">{{ meta(expense.category).label }} · {{ formatDateMedium(expense.spent_at) }}</span>
+                </span>
+                <span class="strong num">{{ formatCurrency(expense.amount) }}</span>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-icon btn-sm"
+                  (click)="remove(expense)"
+                  [attr.aria-label]="'Eliminar ' + expense.description"
+                >
+                  <app-icon name="trash" [size]="16" />
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    </div>
+
+    <app-sheet [open]="formOpen()" title="Nuevo gasto" (closed)="formOpen.set(false)">
+      <form class="stack" (ngSubmit)="save()">
+        <label class="field">
+          <span class="field-label">Descripción</span>
+          <input class="input" name="description" [(ngModel)]="description" placeholder="Ej. Pegamento para pestañas" required />
+        </label>
+        <div class="field">
+          <span class="field-label">Categoría</span>
+          <div class="chips wrap">
+            @for (cat of categories; track cat) {
+              <button type="button" class="chip" [class.is-active]="category === cat" (click)="category = cat">
+                <app-icon [name]="meta(cat).icon" [size]="15" />
+                {{ meta(cat).label }}
+              </button>
+            }
+          </div>
+        </div>
+        <div class="form-grid">
+          <label class="field">
+            <span class="field-label">Monto</span>
+            <input class="input" type="number" inputmode="numeric" min="1" name="amount" [(ngModel)]="amount" required />
+          </label>
+          <label class="field">
+            <span class="field-label">Fecha</span>
+            <input class="input" type="date" name="spent_at" [(ngModel)]="spentAt" required />
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" [disabled]="saving() || !description.trim() || !(amount > 0)">
+          @if (saving()) {
+            <span class="spinner"></span>
+          }
+          Guardar gasto
+        </button>
+      </form>
+    </app-sheet>
   `,
+  styles: [
+    `
+      .total-card {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        background: linear-gradient(135deg, var(--c-surface) 0%, var(--c-danger-soft) 160%);
+      }
+      .total {
+        color: var(--c-danger);
+        font-size: 30px;
+        margin: 2px 0;
+      }
+      .breakdown {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .chips.wrap {
+        flex-wrap: wrap;
+      }
+    `,
+  ],
 })
 export class ExpensesComponent implements OnInit {
+  private readonly auth = inject(AuthService);
+  private readonly expensesService = inject(ExpensesService);
+  private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+
+  readonly categories = EXPENSE_CATEGORIES;
+
   loading = signal(true);
   saving = signal(false);
-  formVisible = signal(false);
+  formOpen = signal(false);
   expenses = signal<ExpenseRow[]>([]);
-  categories: ExpenseCategory[] = ['insumos', 'renta', 'servicios', 'marketing', 'otro'];
+  private cursor = signal(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
-  form: Omit<ExpenseInput, 'spent_at'> = { description: '', category: 'otro', amount: 0 };
-  spentAtDate = new Date().toISOString().slice(0, 10);
+  total = computed(() => this.expenses().reduce((sum, e) => sum + e.amount, 0));
+  monthLabel = computed(() => formatMonthYear(this.cursor()));
+  breakdown = computed(() => {
+    const totals = new Map<string, number>();
+    for (const e of this.expenses()) totals.set(e.category, (totals.get(e.category) ?? 0) + e.amount);
+    return [...totals.entries()].map(([category, total]) => ({ category, total })).sort((a, b) => b.total - a.total);
+  });
 
-  private year: number;
-  private month: number;
-  private ownerId: string | null = null;
+  description = '';
+  category: ExpenseCategory = 'insumos';
+  amount = 0;
+  spentAt = toLocalISODate(new Date());
 
+  meta = expenseMeta;
   formatCurrency = formatCurrency;
+  formatDateMedium = formatDateMedium;
+  plural = plural;
 
-  constructor(
-    private readonly auth: AuthService,
-    private readonly expensesService: ExpensesService,
-    private readonly route: ActivatedRoute
-  ) {
-    const now = new Date();
-    this.year = Number(this.route.snapshot.queryParamMap.get('year')) || now.getFullYear();
-    this.month = Number(this.route.snapshot.queryParamMap.get('month')) || now.getMonth() + 1;
-  }
+  private ownerId: string | null = null;
 
   async ngOnInit() {
     this.ownerId = this.auth.currentUser()?.id ?? null;
+    const params = this.route.snapshot.queryParamMap;
+    const year = Number(params.get('year'));
+    const month = Number(params.get('month'));
+    if (year && month) this.cursor.set(new Date(year, month - 1, 1));
     await this.reload();
   }
 
-  monthLabel(): string {
-    return new Intl.DateTimeFormat('es-CO', { month: 'long', year: 'numeric' }).format(
-      new Date(this.year, this.month - 1, 1)
-    );
+  isCurrentMonth(): boolean {
+    const now = new Date();
+    return this.cursor().getFullYear() === now.getFullYear() && this.cursor().getMonth() === now.getMonth();
   }
 
-  categoryLabel(cat: ExpenseCategory): string {
-    return EXPENSE_CATEGORY_LABELS[cat];
+  async shiftMonth(delta: number) {
+    if (delta > 0 && this.isCurrentMonth()) return;
+    const c = this.cursor();
+    this.cursor.set(new Date(c.getFullYear(), c.getMonth() + delta, 1));
+    await this.reload();
   }
 
-  formatDate(iso: string): string {
-    return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(iso));
-  }
-
-  total(): number {
-    return this.expenses().reduce((sum, e) => sum + e.amount, 0);
+  openForm() {
+    this.description = '';
+    this.category = 'insumos';
+    this.amount = 0;
+    this.spentAt = toLocalISODate(new Date());
+    this.formOpen.set(true);
   }
 
   private async reload() {
     if (!this.ownerId) return;
     this.loading.set(true);
-    this.expenses.set(await this.expensesService.getExpensesByMonth(this.ownerId, this.year, this.month));
-    this.loading.set(false);
+    try {
+      const c = this.cursor();
+      this.expenses.set(await this.expensesService.getExpensesByMonth(this.ownerId, c.getFullYear(), c.getMonth() + 1));
+    } catch {
+      this.toast.error('No se pudieron cargar los gastos.');
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   async save() {
-    if (!this.ownerId || !this.form.description || !this.form.amount) return;
+    if (!this.ownerId || !this.description.trim() || !(this.amount > 0)) return;
     this.saving.set(true);
     try {
+      // Noon local time keeps the expense on the chosen day regardless of UTC offset.
+      const spentAt = parseISODate(this.spentAt);
+      spentAt.setHours(12);
       await this.expensesService.createExpense(this.ownerId, {
-        ...this.form,
-        spent_at: new Date(this.spentAtDate).toISOString(),
+        description: this.description.trim(),
+        category: this.category,
+        amount: Number(this.amount),
+        spent_at: spentAt.toISOString(),
       });
-      this.form = { description: '', category: 'otro', amount: 0 };
-      this.formVisible.set(false);
+      this.formOpen.set(false);
+      this.toast.success('Gasto registrado');
       await this.reload();
+    } catch {
+      this.toast.error('No se pudo guardar el gasto.');
     } finally {
       this.saving.set(false);
     }
   }
 
   async remove(expense: ExpenseRow) {
-    if (!confirm(`¿Eliminar el gasto "${expense.description}"?`)) return;
-    await this.expensesService.deleteExpense(expense.id);
-    await this.reload();
+    if (!confirm(`¿Eliminar "${expense.description}"?`)) return;
+    try {
+      await this.expensesService.deleteExpense(expense.id);
+      this.toast.success('Gasto eliminado');
+      await this.reload();
+    } catch {
+      this.toast.error('No se pudo eliminar el gasto.');
+    }
   }
 }
