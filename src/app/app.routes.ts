@@ -24,13 +24,56 @@ export const routes: Routes = [
       },
       {
         path: 'clientas',
-        loadComponent: () =>
-          import('./admin/clients/clients-list.component').then((m) => m.ClientsListComponent),
+        children: [
+          {
+            path: '',
+            loadComponent: () => import('./admin/clients/clients-list.component').then((m) => m.ClientsListComponent),
+          },
+          {
+            path: 'nueva',
+            loadComponent: () => import('./admin/clients/client-form.component').then((m) => m.ClientFormComponent),
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('./admin/clients/client-detail.component').then((m) => m.ClientDetailComponent),
+          },
+          {
+            path: ':id/editar',
+            loadComponent: () => import('./admin/clients/client-form.component').then((m) => m.ClientFormComponent),
+          },
+          {
+            path: ':id/historial',
+            loadComponent: () =>
+              import('./admin/clients/client-history.component').then((m) => m.ClientHistoryComponent),
+          },
+        ],
       },
       {
         path: 'citas',
-        loadComponent: () =>
-          import('./admin/appointments/appointments-calendar.component').then((m) => m.AppointmentsCalendarComponent),
+        children: [
+          {
+            path: '',
+            loadComponent: () =>
+              import('./admin/appointments/appointments-calendar.component').then(
+                (m) => m.AppointmentsCalendarComponent
+              ),
+          },
+          {
+            path: 'nueva',
+            loadComponent: () =>
+              import('./admin/appointments/appointment-form.component').then((m) => m.AppointmentFormComponent),
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('./admin/appointments/appointment-detail.component').then((m) => m.AppointmentDetailComponent),
+          },
+        ],
+      },
+      {
+        path: 'catalogo',
+        loadComponent: () => import('./admin/catalog/catalog.component').then((m) => m.CatalogComponent),
       },
       {
         path: 'reportes',

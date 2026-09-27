@@ -17,6 +17,7 @@ import { AuthService } from '../../core/services/auth.service';
           <a routerLink="dashboard" routerLinkActive="active">Inicio</a>
           <a routerLink="clientas" routerLinkActive="active">Clientas</a>
           <a routerLink="citas" routerLinkActive="active">Citas</a>
+          <a routerLink="catalogo" routerLinkActive="active">Catálogo</a>
           <a routerLink="reportes" routerLinkActive="active">Reportes</a>
           <a routerLink="configuracion" routerLinkActive="active">Configuración</a>
         </nav>
