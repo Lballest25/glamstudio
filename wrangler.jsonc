@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "glamstudio",
+  "compatibility_date": "2026-09-26",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "dist/glamstudio-web/browser",
+    // Serves index.html for any request that doesn't match a built file,
+    // so Angular's client-side router handles deep links like /admin/citas
+    // and /agendar directly (refresh, shared link, etc.) instead of 404ing.
+    // This replaces the legacy Pages `_redirects` (`/* /index.html 200`)
+    // trick, which this newer Workers-assets engine rejects outright as an
+    // "infinite loop" (it has its own index.html resolution internally).
+    "not_found_handling": "single-page-application"
+  }
+}

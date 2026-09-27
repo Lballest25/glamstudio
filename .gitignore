@@ -45,3 +45,6 @@ Thumbs.db
 /src/environments/environment.ts
 /src/environments/environment.prod.ts
 .env.local
+
+# Wrangler local cache/state
+/.wrangler
