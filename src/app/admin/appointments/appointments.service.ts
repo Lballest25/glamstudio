@@ -112,6 +112,31 @@ export class AppointmentsService {
     if (error) throw error;
   }
 
+  // Atomic replacement for the Flutter app's two separate writes (status
+  // update, then a payments insert) — see complete_appointment_and_pay in
+  // glamstudio/supabase/migrations/20260928000000_public_booking_and_rpcs.sql.
+  // Fires the existing update_loyalty_progress trigger unchanged.
+  async completeAppointmentAndPay(params: {
+    appointmentId: string;
+    discountPct: number;
+    subtotal: number;
+    totalAmount: number;
+    paymentMethod: 'cash' | 'transfer' | 'card';
+    paymentReference?: string | null;
+    paymentNotes?: string | null;
+  }): Promise<void> {
+    const { error } = await this.supabase.client.rpc('complete_appointment_and_pay', {
+      p_appointment_id: params.appointmentId,
+      p_discount_pct: params.discountPct,
+      p_subtotal: params.subtotal,
+      p_total_amount: params.totalAmount,
+      p_payment_method: params.paymentMethod,
+      p_payment_reference: params.paymentReference ?? null,
+      p_payment_notes: params.paymentNotes ?? null,
+    });
+    if (error) throw new Error(error.message);
+  }
+
   private mapClientAppointment(row: any): ClientAppointment {
     return {
       ...(row as AppointmentRow),

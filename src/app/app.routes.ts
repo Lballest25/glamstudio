@@ -47,6 +47,11 @@ export const routes: Routes = [
             loadComponent: () =>
               import('./admin/clients/client-history.component').then((m) => m.ClientHistoryComponent),
           },
+          {
+            path: ':id/fidelizacion',
+            loadComponent: () =>
+              import('./admin/loyalty/client-loyalty.component').then((m) => m.ClientLoyaltyComponent),
+          },
         ],
       },
       {
@@ -68,6 +73,13 @@ export const routes: Routes = [
             path: ':id',
             loadComponent: () =>
               import('./admin/appointments/appointment-detail.component').then((m) => m.AppointmentDetailComponent),
+          },
+          {
+            path: ':id/completar',
+            loadComponent: () =>
+              import('./admin/appointments/complete-appointment.component').then(
+                (m) => m.CompleteAppointmentComponent
+              ),
           },
         ],
       },

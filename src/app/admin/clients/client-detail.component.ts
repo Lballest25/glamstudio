@@ -31,6 +31,7 @@ import { ClientRow, ClientsService } from './clients.service';
       <div style="display:flex; gap:8px; flex-wrap: wrap;">
         <a class="btn" [routerLink]="['/admin/clientas', client.id, 'editar']">Editar</a>
         <a class="btn" [routerLink]="['/admin/clientas', client.id, 'historial']">Ver historial</a>
+        <a class="btn" [routerLink]="['/admin/clientas', client.id, 'fidelizacion']">Fidelización</a>
         <a class="btn btn-primary" [routerLink]="['/admin/citas/nueva']" [queryParams]="{ clientId: client.id }">
           + Nueva cita
         </a>

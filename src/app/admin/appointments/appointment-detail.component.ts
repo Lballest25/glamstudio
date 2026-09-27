@@ -1,6 +1,6 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { formatCurrency } from '../../core/utils/currency.util';
 import { buildAppointmentReminderUri } from '../../core/utils/whatsapp.util';
 import { AppointmentDetail, AppointmentsService, STATUS_LABELS } from './appointments.service';
@@ -8,7 +8,7 @@ import { AppointmentDetail, AppointmentsService, STATUS_LABELS } from './appoint
 @Component({
   selector: 'app-appointment-detail',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     @if (appointment(); as appt) {
       <div class="page-header">
@@ -41,9 +41,7 @@ import { AppointmentDetail, AppointmentsService, STATUS_LABELS } from './appoint
           }
           <button class="btn" (click)="showReschedule.set(!showReschedule())">Reagendar</button>
           <button class="btn btn-danger" (click)="cancel()">Cancelar cita</button>
-          <button class="btn btn-primary" disabled title="Disponible en la siguiente fase">
-            Completar y cobrar (próximamente)
-          </button>
+          <a class="btn btn-primary" [routerLink]="['/admin/citas', appt.id, 'completar']">Completar y cobrar</a>
         </div>
       }
 
