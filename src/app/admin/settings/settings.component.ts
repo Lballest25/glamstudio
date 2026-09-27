@@ -23,12 +23,12 @@ import { SettingsService, WorkingHours } from './settings.service';
         <p class="hint">Cargando…</p>
       } @else {
         <div class="card" style="max-width:360px;">
-          <div style="display:flex; gap:12px;">
-            <label class="field" style="flex:1;">
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <label class="field" style="flex:1; min-width:120px;">
               Abre
               <input type="time" [(ngModel)]="hours.start" />
             </label>
-            <label class="field" style="flex:1;">
+            <label class="field" style="flex:1; min-width:120px;">
               Cierra
               <input type="time" [(ngModel)]="hours.end" />
             </label>

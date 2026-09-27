@@ -38,8 +38,8 @@ import { AppointmentsService } from './appointments.service';
         }
       }
 
-      <div style="display:flex; gap:12px;">
-        <label class="field" style="flex:1;">
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <label class="field" style="flex:1; min-width:140px;">
           Fecha
           <input type="date" name="date" [(ngModel)]="date" required />
         </label>

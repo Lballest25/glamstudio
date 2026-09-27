@@ -112,6 +112,9 @@ import { AuthService } from '../../core/services/auth.service';
         .brand span {
           display: none;
         }
+        .content {
+          padding: 16px;
+        }
       }
     `,
   ],

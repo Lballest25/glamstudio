@@ -47,12 +47,12 @@ import { AppointmentDetail, AppointmentsService, STATUS_LABELS } from './appoint
 
       @if (showReschedule()) {
         <div class="card" style="max-width: 360px;">
-          <div style="display:flex; gap:12px;">
-            <label class="field" style="flex:1;">
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <label class="field" style="flex:1; min-width:140px;">
               Fecha
               <input type="date" [(ngModel)]="newDate" />
             </label>
-            <label class="field" style="flex:1;">
+            <label class="field" style="flex:1; min-width:140px;">
               Hora
               <input type="time" [(ngModel)]="newTime" />
             </label>
