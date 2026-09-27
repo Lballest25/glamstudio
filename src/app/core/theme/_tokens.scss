@@ -1,0 +1,45 @@
+// Palette ported 1:1 from the Flutter app's lib/core/theme/glamstudio_colors.dart
+// so the web app looks visually consistent with the original mobile app.
+:root {
+  // Primary — lila suave
+  --color-primary: #9c7bb8;
+  --color-primary-light: #c4a8dc;
+  --color-primary-dark: #7254a0;
+
+  // Secondary — lavanda/malva
+  --color-secondary: #8b6fa8;
+  --color-secondary-light: #bca8d4;
+  --color-secondary-dark: #5e4080;
+
+  // Superficies
+  --color-surface: #fbf7ff;
+  --color-surface-variant: #f0e8f8;
+  --color-background: #f6f0fc;
+
+  // Texto
+  --color-text-primary: #1d1030;
+  --color-text-secondary: #5c3d80;
+  --color-text-hint: #a890c0;
+
+  // Estados
+  --color-success: #4caf7d;
+  --color-warning: #e8a838;
+  --color-error: #e05656;
+  --color-info: #5b9bd5;
+
+  // WhatsApp
+  --color-whatsapp: #25d366;
+  --color-whatsapp-dark: #128c7e;
+
+  // Divisores
+  --color-divider: #ddd0ee;
+
+  // Fidelización
+  --color-loyalty-gold: #ffd700;
+  --color-loyalty-silver: #c0c0c0;
+  --color-loyalty-bronze: #cd7f32;
+
+  // Layout
+  --radius-md: 12px;
+  --font-family-base: 'Nunito', sans-serif;
+}

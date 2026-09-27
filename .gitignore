@@ -40,3 +40,8 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Generated environment files — contain Supabase credentials, never commit
+/src/environments/environment.ts
+/src/environments/environment.prod.ts
+.env.local
