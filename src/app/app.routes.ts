@@ -92,6 +92,10 @@ export const routes: Routes = [
         loadComponent: () => import('./admin/reports/reports.component').then((m) => m.ReportsComponent),
       },
       {
+        path: 'gastos',
+        loadComponent: () => import('./admin/expenses/expenses.component').then((m) => m.ExpensesComponent),
+      },
+      {
         path: 'configuracion',
         loadComponent: () => import('./admin/settings/settings.component').then((m) => m.SettingsComponent),
       },
