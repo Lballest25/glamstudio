@@ -5,6 +5,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
 import { applyDiscount, formatCurrency } from '../../core/utils/currency.util';
 import { formatDayLong, formatTime } from '../../core/utils/format.util';
+import { pickGiftLine } from '../../core/utils/gift.util';
 import { PAYMENT_OPTIONS, PaymentChoice } from '../../core/utils/labels';
 import { IconComponent } from '../../shared/components/icon.component';
 import { LoyaltyProgressRow, LoyaltyService } from '../loyalty/loyalty.service';
@@ -31,8 +32,16 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
           <section class="benefit">
             <span class="benefit-icon"><app-icon name="gift" [size]="26" /></span>
             <div>
-              <p class="benefit-title">Sesión de obsequio</p>
-              <p class="benefit-text">{{ a.client_name }} completó su ciclo de fidelización. Esta sesión no tiene costo.</p>
+              <p class="benefit-title">Obsequio de fidelización</p>
+              <p class="benefit-text">
+                {{ a.client_name }} completó su ciclo. Se regala
+                <strong>{{ giftLine()?.service_name }}</strong> (el servicio más económico)
+                @if (total() > 0) {
+                  y el resto se cobra normal.
+                } @else {
+                  y la cita queda sin costo.
+                }
+              </p>
             </div>
           </section>
         } @else if (discountPct() > 0) {
@@ -49,7 +58,14 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
           <ul class="list">
             @for (line of a.services; track line.service_id) {
               <li class="list-row">
-                <span class="grow">{{ line.service_name }}@if (line.quantity > 1) { × {{ line.quantity }} }</span>
+                <span class="grow">
+                  {{ line.service_name }}@if (line.quantity > 1) { × {{ line.quantity }} }
+                  @if (isGift() && line.service_id === giftLine()?.service_id) {
+                    <span class="badge badge-gold" style="margin-left: 6px">
+                      <app-icon name="gift" [size]="12" /> Obsequio
+                    </span>
+                  }
+                </span>
                 <span class="num">{{ formatCurrency(line.price_at_time * line.quantity) }}</span>
               </li>
             }
@@ -58,7 +74,7 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
             @if (discountPct() > 0 || isGift()) {
               <div class="row-between muted"><span>Subtotal</span><span class="num">{{ formatCurrency(subtotal()) }}</span></div>
               <div class="row-between discount">
-                <span>{{ isGift() ? 'Obsequio' : 'Descuento ' + discountPct() + '%' }}</span>
+                <span>{{ isGift() ? 'Obsequio (' + giftLine()?.service_name + ')' : 'Descuento ' + discountPct() + '%' }}</span>
                 <span class="num">−{{ formatCurrency(subtotal() - total()) }}</span>
               </div>
             }
@@ -69,7 +85,7 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
           </div>
         </section>
 
-        @if (!isGift()) {
+        @if (total() > 0) {
           <section class="card card-pad stack">
             <h2>Método de pago</h2>
             <div class="segmented" role="radiogroup" aria-label="Método de pago">
@@ -108,7 +124,7 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
           } @else {
             <app-icon name="check" [size]="20" />
           }
-          {{ isGift() ? 'Confirmar obsequio' : 'Confirmar cobro de ' + formatCurrency(total()) }}
+          {{ total() > 0 ? 'Confirmar cobro de ' + formatCurrency(total()) : 'Confirmar obsequio' }}
         </button>
       } @else if (loading()) {
         <div class="card card-pad stack">
@@ -210,7 +226,12 @@ export class CompleteAppointmentComponent implements OnInit {
     const p = this.progress();
     return p?.benefit_pending && p.pending_benefit_type === 'discount' ? (p.pending_benefit_value ?? 0) : 0;
   });
-  total = computed(() => (this.isGift() ? 0 : applyDiscount(this.subtotal(), this.discountPct())));
+  giftLine = computed(() => (this.isGift() ? pickGiftLine(this.appointment()?.services ?? []) : undefined));
+  total = computed(() =>
+    this.isGift()
+      ? this.subtotal() - (this.giftLine()?.price_at_time ?? 0)
+      : applyDiscount(this.subtotal(), this.discountPct())
+  );
 
   formatCurrency = formatCurrency;
   formatDayLong = formatDayLong;
@@ -244,7 +265,7 @@ export class CompleteAppointmentComponent implements OnInit {
         paymentMethod: this.method(),
         paymentReference: this.method() === 'transfer' ? this.reference.trim() || null : null,
       });
-      this.toast.success(this.isGift() ? 'Obsequio registrado' : 'Cobro registrado');
+      this.toast.success(this.total() > 0 ? 'Cobro registrado' : 'Obsequio registrado');
       await this.router.navigate(['/admin/citas', a.id]);
     } catch (error) {
       this.errorMessage.set(error instanceof Error ? error.message : 'No se pudo completar la cita.');

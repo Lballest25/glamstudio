@@ -12,6 +12,7 @@ import {
   toLocalISODate,
   toLocalTime,
 } from '../../core/utils/format.util';
+import { pickGiftLine } from '../../core/utils/gift.util';
 import { statusMeta } from '../../core/utils/labels';
 import { buildAppointmentReminderUri } from '../../core/utils/whatsapp.util';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -109,13 +110,15 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
           </ul>
           <div class="totals">
             @if (a.status === 'completed') {
-              @if (a.discount_pct > 0) {
+              @if (a.discount_pct > 0 || discountAmount(a) > 0) {
                 <div class="row-between muted">
                   <span>Subtotal</span><span class="num">{{ formatCurrency(a.subtotal ?? subtotal(a)) }}</span>
                 </div>
                 <div class="row-between discount">
-                  <span>Descuento fidelización ({{ a.discount_pct }}%)</span>
-                  <span class="num">−{{ formatCurrency((a.subtotal ?? subtotal(a)) - (a.total_amount ?? 0)) }}</span>
+                  <span>
+                    {{ a.discount_pct > 0 ? 'Descuento fidelización (' + a.discount_pct + '%)' : 'Obsequio (' + giftName(a) + ')' }}
+                  </span>
+                  <span class="num">−{{ formatCurrency(discountAmount(a)) }}</span>
                 </div>
               }
               <div class="row-between grand">
@@ -297,6 +300,16 @@ export class AppointmentDetailComponent implements OnInit {
 
   subtotal(a: AppointmentDetail): number {
     return a.services.reduce((sum, s) => sum + s.price_at_time * s.quantity, 0);
+  }
+
+  // Amount knocked off a completed appointment (percentage discount or gift).
+  discountAmount(a: AppointmentDetail): number {
+    if (a.status !== 'completed') return 0;
+    return Math.max(0, (a.subtotal ?? this.subtotal(a)) - (a.total_amount ?? 0));
+  }
+
+  giftName(a: AppointmentDetail): string {
+    return pickGiftLine(a.services)?.service_name ?? 'servicio';
   }
 
   timeRange(a: AppointmentDetail): string {
