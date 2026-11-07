@@ -1,6 +1,7 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
 import { formatCurrency } from '../../core/utils/currency.util';
 import {
@@ -13,10 +14,11 @@ import {
   toLocalTime,
 } from '../../core/utils/format.util';
 import { pickGiftLine } from '../../core/utils/gift.util';
-import { statusMeta } from '../../core/utils/labels';
+import { CATEGORY_ORDER, categoryMeta, statusMeta } from '../../core/utils/labels';
 import { buildAppointmentReminderUri } from '../../core/utils/whatsapp.util';
 import { IconComponent } from '../../shared/components/icon.component';
 import { SheetComponent } from '../../shared/components/sheet.component';
+import { CatalogService, ServiceRow } from '../catalog/catalog.service';
 import { AppointmentDetail, AppointmentsService } from './appointments.service';
 
 @Component({
@@ -85,6 +87,10 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
                 <app-icon name="calendar-clock" [size]="18" />
                 Reagendar
               </button>
+              <button type="button" class="btn" (click)="openEditServices(a)">
+                <app-icon name="pencil" [size]="18" />
+                Servicios
+              </button>
               <button type="button" class="btn btn-danger" [disabled]="cancelling()" (click)="cancel(a)">
                 <app-icon name="ban" [size]="18" />
                 Cancelar
@@ -138,6 +144,58 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
             <p class="muted notes">{{ a.notes }}</p>
           </section>
         }
+
+        <app-sheet [open]="servicesOpen()" title="Editar servicios" (closed)="servicesOpen.set(false)">
+          <div class="stack">
+            @if (loadingCatalog()) {
+              <span class="skeleton" style="height: 64px; border-radius: 14px"></span>
+              <span class="skeleton" style="height: 64px; border-radius: 14px"></span>
+            } @else {
+              @for (group of serviceGroups(); track group.category) {
+                <p class="section-title">{{ meta(group.category).label }}</p>
+                <div class="service-pick">
+                  @for (s of group.items; track s.id) {
+                    <button
+                      type="button"
+                      class="pick"
+                      [class.is-selected]="pickedIds().has(s.id)"
+                      [attr.aria-pressed]="pickedIds().has(s.id)"
+                      (click)="togglePicked(s.id)"
+                    >
+                      <span class="grow">
+                        <span class="pick-name">{{ s.name }}@if (!s.is_active) { <span class="subtle"> (oculto)</span> }</span>
+                        <span class="pick-meta">{{ formatDuration(s.duration_min) }} · {{ formatCurrency(priceFor(a, s)) }}</span>
+                      </span>
+                      <span class="pick-check"><app-icon name="check" [size]="13" [stroke]="3" /></span>
+                    </button>
+                  }
+                </div>
+              }
+              <div class="row-between edit-total">
+                <span class="muted">{{ pickedIds().size === 1 ? '1 servicio' : pickedIds().size + ' servicios' }}</span>
+                <strong class="num">{{ formatCurrency(pickedTotal(a)) }}</strong>
+              </div>
+            }
+
+            @if (errorMessage()) {
+              <div class="alert alert-danger">
+                <app-icon name="alert-circle" [size]="18" />
+                <span>{{ errorMessage() }}</span>
+              </div>
+            }
+            <button
+              type="button"
+              class="btn btn-primary btn-lg btn-block"
+              [disabled]="saving() || pickedIds().size === 0 || !servicesChanged(a)"
+              (click)="saveServices(a)"
+            >
+              @if (saving()) {
+                <span class="spinner"></span>
+              }
+              Guardar servicios
+            </button>
+          </div>
+        </app-sheet>
 
         <app-sheet [open]="rescheduleOpen()" title="Reagendar cita" (closed)="rescheduleOpen.set(false)">
           <div class="stack">
@@ -255,12 +313,66 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
         margin-top: 6px;
         white-space: pre-line;
       }
+      .service-pick {
+        display: grid;
+        gap: 8px;
+      }
+      .pick {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border: 1.5px solid var(--c-border);
+        border-radius: var(--r-md);
+        background: var(--c-surface);
+        text-align: left;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+      .pick.is-selected {
+        border-color: var(--c-primary);
+        background: var(--c-primary-soft);
+      }
+      .pick-name {
+        display: block;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .pick-meta {
+        display: block;
+        font-size: 12.5px;
+        color: var(--c-text-2);
+        margin-top: 2px;
+      }
+      .pick-check {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid var(--c-border-strong);
+        display: grid;
+        place-items: center;
+        color: transparent;
+        flex-shrink: 0;
+      }
+      .pick.is-selected .pick-check {
+        background: var(--c-primary);
+        border-color: var(--c-primary);
+        color: #fff;
+      }
+      .edit-total {
+        padding-top: 4px;
+        font-size: 15px;
+      }
     `,
   ],
 })
 export class AppointmentDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
   private readonly appointmentsService = inject(AppointmentsService);
+  private readonly catalogService = inject(CatalogService);
   private readonly toast = inject(ToastService);
 
   loading = signal(true);
@@ -272,9 +384,21 @@ export class AppointmentDetailComponent implements OnInit {
   newDate = '';
   newTime = '';
 
+  servicesOpen = signal(false);
+  loadingCatalog = signal(false);
+  catalog = signal<ServiceRow[]>([]);
+  pickedIds = signal<Set<string>>(new Set());
+  serviceGroups = computed(() =>
+    CATEGORY_ORDER.map((category) => ({ category, items: this.catalog().filter((s) => s.category === category) })).filter(
+      (g) => g.items.length > 0
+    )
+  );
+
   formatCurrency = formatCurrency;
   formatDayLong = formatDayLong;
+  formatDuration = formatDuration;
   statusMeta = statusMeta;
+  meta = categoryMeta;
   avatar = avatarColors;
   initials = initials;
 
@@ -310,6 +434,82 @@ export class AppointmentDetailComponent implements OnInit {
 
   giftName(a: AppointmentDetail): string {
     return pickGiftLine(a.services)?.service_name ?? 'servicio';
+  }
+
+  // --- edit services ------------------------------------------------------
+
+  async openEditServices(a: AppointmentDetail) {
+    const ownerId = this.auth.currentUser()?.id;
+    if (!ownerId) return;
+
+    this.errorMessage.set(null);
+    this.pickedIds.set(new Set(a.services.map((s) => s.service_id)));
+    this.servicesOpen.set(true);
+    this.loadingCatalog.set(true);
+    try {
+      const current = new Set(a.services.map((s) => s.service_id));
+      const all = await this.catalogService.getAllServices(ownerId);
+      // Hidden services only stay in the list if they're already on this appointment.
+      this.catalog.set(all.filter((s) => s.is_active || current.has(s.id)));
+    } catch {
+      this.servicesOpen.set(false);
+      this.toast.error('No se pudo cargar el catálogo.');
+    } finally {
+      this.loadingCatalog.set(false);
+    }
+  }
+
+  togglePicked(id: string) {
+    const next = new Set(this.pickedIds());
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    this.pickedIds.set(next);
+  }
+
+  // Kept services keep the price they were booked at; only new ones use today's price.
+  priceFor(a: AppointmentDetail, s: ServiceRow): number {
+    return a.services.find((l) => l.service_id === s.id)?.price_at_time ?? s.base_price;
+  }
+
+  pickedTotal(a: AppointmentDetail): number {
+    const picked = this.pickedIds();
+    return this.catalog()
+      .filter((s) => picked.has(s.id))
+      .reduce((sum, s) => {
+        const line = a.services.find((l) => l.service_id === s.id);
+        return sum + (line ? line.price_at_time * line.quantity : s.base_price);
+      }, 0);
+  }
+
+  servicesChanged(a: AppointmentDetail): boolean {
+    const picked = this.pickedIds();
+    const current = new Set(a.services.map((s) => s.service_id));
+    return picked.size !== current.size || [...picked].some((id) => !current.has(id));
+  }
+
+  async saveServices(a: AppointmentDetail) {
+    const picked = this.pickedIds();
+    if (picked.size === 0 || !this.servicesChanged(a)) return;
+
+    const current = new Set(a.services.map((s) => s.service_id));
+    const add = this.catalog()
+      .filter((s) => picked.has(s.id) && !current.has(s.id))
+      .map((s) => ({ service_id: s.id, price_at_time: s.base_price }));
+    const remove = [...current].filter((id) => !picked.has(id));
+
+    this.saving.set(true);
+    this.errorMessage.set(null);
+    try {
+      await this.appointmentsService.updateServices(a.id, add, remove, a.subtotal !== null ? this.pickedTotal(a) : null);
+      this.servicesOpen.set(false);
+      this.toast.success('Servicios actualizados');
+    } catch (error) {
+      this.errorMessage.set(error instanceof Error ? error.message : 'No se pudieron actualizar los servicios.');
+    } finally {
+      this.saving.set(false);
+      // Reload either way: a failure between steps can leave the appointment half-edited.
+      await this.reload();
+    }
   }
 
   timeRange(a: AppointmentDetail): string {

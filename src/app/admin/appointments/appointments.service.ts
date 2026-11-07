@@ -108,6 +108,50 @@ export class AppointmentsService {
     if (error) throw this.friendlyError(error);
   }
 
+  // Edits the services of a pending appointment without ever leaving it empty:
+  // additions go in first (one statement — if the longer duration collides
+  // with the next appointment the no-overlap constraint rejects it and
+  // nothing has changed yet), then removals (a shorter appointment can't
+  // collide). Kept services are untouched, so they keep their original
+  // price_at_time. DB triggers recompute duration_min/ends_at.
+  async updateServices(
+    appointmentId: string,
+    add: { service_id: string; price_at_time: number }[],
+    removeServiceIds: string[],
+    newSubtotal: number | null
+  ): Promise<void> {
+    if (add.length > 0) {
+      const { error } = await this.supabase.client
+        .from('appointment_services')
+        .insert(add.map((line) => ({ appointment_id: appointmentId, quantity: 1, ...line })));
+      if (error) {
+        const friendly = this.friendlyError(error);
+        throw friendly.message.includes('se cruza')
+          ? new Error('Con esos servicios la cita duraría más y se cruzaría con otra cita.')
+          : friendly;
+      }
+    }
+
+    if (removeServiceIds.length > 0) {
+      const { error } = await this.supabase.client
+        .from('appointment_services')
+        .delete()
+        .eq('appointment_id', appointmentId)
+        .in('service_id', removeServiceIds);
+      if (error) throw this.friendlyError(error);
+    }
+
+    // Booked-online appointments store an estimated subtotal/total up front;
+    // keep it in sync (it is recomputed again at checkout anyway).
+    if (newSubtotal !== null) {
+      const { error } = await this.supabase.client
+        .from('appointments')
+        .update({ subtotal: newSubtotal, total_amount: newSubtotal })
+        .eq('id', appointmentId);
+      if (error) throw this.friendlyError(error);
+    }
+  }
+
   async cancelAppointment(id: string): Promise<void> {
     const { error } = await this.supabase.client.from('appointments').update({ status: 'cancelled' }).eq('id', id);
     if (error) throw error;
