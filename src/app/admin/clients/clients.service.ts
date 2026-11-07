@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { SupabaseService } from '../../core/services/supabase.service';
 import { Database } from '../../core/models/database.types';
+import { matchesPerson } from '../../core/utils/search.util';
 
 export type ClientRow = Database['public']['Tables']['clients']['Row'];
 export type LoyaltyProgressRow = Database['public']['Tables']['loyalty_progress']['Row'];
@@ -18,20 +19,19 @@ export interface ClientInput {
 export class ClientsService {
   constructor(private readonly supabase: SupabaseService) {}
 
+  // The search is done here, not with `ilike`, so it ignores accents
+  // (see search.util.ts). One owner's active clients is a small list.
   async listClients(ownerId: string, query?: string): Promise<ClientRow[]> {
-    let builder = this.supabase.client
+    const { data, error } = await this.supabase.client
       .from('clients')
       .select('*')
       .eq('owner_id', ownerId)
-      .eq('is_active', true);
-
-    if (query && query.trim().length > 0) {
-      builder = builder.ilike('full_name', `%${query.trim()}%`);
-    }
-
-    const { data, error } = await builder.order('full_name', { ascending: true });
+      .eq('is_active', true)
+      .order('full_name', { ascending: true });
     if (error) throw error;
-    return data ?? [];
+
+    const clients = data ?? [];
+    return query?.trim() ? clients.filter((c) => matchesPerson(c.full_name, c.phone, query)) : clients;
   }
 
   async getClientById(id: string): Promise<ClientRow | null> {

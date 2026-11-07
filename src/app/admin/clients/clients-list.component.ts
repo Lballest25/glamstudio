@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
 import { avatarColors, initials, plural } from '../../core/utils/format.util';
+import { matchesPerson } from '../../core/utils/search.util';
 import { IconComponent } from '../../shared/components/icon.component';
 import { ClientRow, ClientsService, LoyaltyProgressRow } from './clients.service';
 
@@ -121,22 +122,25 @@ export class ClientsListComponent implements OnInit {
 
   loading = signal(true);
   query = '';
+  private queryText = signal('');
   private clients = signal<ClientRow[]>([]);
   private loyalty = signal<Map<string, LoyaltyProgressRow>>(new Map());
 
+  // Filtered locally, ignoring accents and case ("maria" finds "María").
   items = computed<ClientListItem[]>(() =>
-    this.clients().map((client) => ({
-      client,
-      initials: initials(client.full_name),
-      avatar: avatarColors(client.full_name),
-      badge: this.badgeFor(this.loyalty().get(client.id)),
-    }))
+    this.clients()
+      .filter((client) => matchesPerson(client.full_name, client.phone, this.queryText()))
+      .map((client) => ({
+        client,
+        initials: initials(client.full_name),
+        avatar: avatarColors(client.full_name),
+        badge: this.badgeFor(this.loyalty().get(client.id)),
+      }))
   );
 
   plural = plural;
 
   private ownerId: string | null = null;
-  private searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
   async ngOnInit() {
     this.ownerId = this.auth.currentUser()?.id ?? null;
@@ -144,15 +148,14 @@ export class ClientsListComponent implements OnInit {
   }
 
   onQueryChange() {
-    if (this.searchTimeout) clearTimeout(this.searchTimeout);
-    this.searchTimeout = setTimeout(() => this.reload(), 250);
+    this.queryText.set(this.query);
   }
 
   private async reload() {
     if (!this.ownerId) return;
     this.loading.set(true);
     try {
-      const clients = await this.clientsService.listClients(this.ownerId, this.query);
+      const clients = await this.clientsService.listClients(this.ownerId);
       const loyalty = await this.clientsService.getLoyaltyProgressByClientIds(
         this.ownerId,
         clients.map((c) => c.id)
