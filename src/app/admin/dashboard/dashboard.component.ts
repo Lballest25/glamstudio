@@ -17,8 +17,6 @@ import {
 import { statusMeta } from '../../core/utils/labels';
 import { buildBirthdayUri } from '../../core/utils/whatsapp.util';
 import { IconComponent } from '../../shared/components/icon.component';
-import { RecontactService } from '../clients/recontact.service';
-import { SettingsService } from '../settings/settings.service';
 import { BirthdayClient, DashboardService, LoyaltyAlertRow, TodayAppointment } from './dashboard.service';
 
 @Component({
@@ -169,22 +167,6 @@ import { BirthdayClient, DashboardService, LoyaltyAlertRow, TodayAppointment } f
         </section>
 
         <div class="stack side">
-          @if (returningCount() > 0) {
-            <a class="card card-pad card-link" routerLink="/admin/clientas/volver">
-              <div class="row">
-                <span class="tile tone-primary"><app-icon name="repeat" [size]="20" /></span>
-                <div class="grow">
-                  <h3>Les toca volver</h3>
-                  <p class="muted small">
-                    {{ returningCount() === 1 ? '1 clienta lleva' : returningCount() + ' clientas llevan' }}
-                    más de {{ returningLabel() }} sin venir
-                  </p>
-                </div>
-                <app-icon name="chevron-right" [size]="18" class="chev" />
-              </div>
-            </a>
-          }
-
           <section class="card">
             <div class="card-head">
               <h2>Fidelización</h2>
@@ -298,8 +280,6 @@ export class DashboardComponent implements OnInit {
   private readonly dashboard = inject(DashboardService);
   private readonly toast = inject(ToastService);
   readonly online = inject(OnlineBookingsService);
-  private readonly settings = inject(SettingsService);
-  private readonly recontact = inject(RecontactService);
 
   readonly greetingText = greeting();
   readonly todayLabel = formatDayLong(new Date());
@@ -312,9 +292,6 @@ export class DashboardComponent implements OnInit {
   monthCount = signal(0);
 
   pendingBenefits = computed(() => this.alerts().filter((a) => a.benefit_pending).length);
-
-  returningCount = signal(0);
-  returningLabel = signal('3 semanas');
 
   formatCurrency = formatCurrency;
   formatTime = formatTime;
@@ -344,22 +321,6 @@ export class DashboardComponent implements OnInit {
       this.toast.error('No se pudo cargar el resumen. Revisa tu conexión.');
     } finally {
       this.loading.set(false);
-    }
-    void this.loadReturning(ownerId);
-  }
-
-  // Secondary info: loaded after the main content and never blocks or errors out the page.
-  private async loadReturning(ownerId: string) {
-    try {
-      const { days } = await this.settings.getRecontact(ownerId);
-      const overdue = await this.recontact.getOverdue(ownerId, days);
-      const recent = Date.now() - 14 * 86_400_000;
-      this.returningCount.set(overdue.filter((o) => !o.lastContactedAt || o.lastContactedAt.getTime() < recent).length);
-      this.returningLabel.set(
-        ({ 21: '3 semanas', 30: '1 mes', 60: '2 meses', 90: '3 meses' } as Record<number, string>)[days] ?? `${days} días`
-      );
-    } catch {
-      /* the card just stays hidden */
     }
   }
 

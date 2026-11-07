@@ -11,7 +11,7 @@ import { IconComponent } from '../../shared/components/icon.component';
 import { InstallGuideComponent } from '../../shared/components/install-guide.component';
 import { SheetComponent } from '../../shared/components/sheet.component';
 import { LoyaltyRuleRow, LoyaltyService } from '../loyalty/loyalty.service';
-import { RecontactSettings, SettingsService, WorkingHours } from './settings.service';
+import { SettingsService, WorkingHours } from './settings.service';
 
 @Component({
   selector: 'app-settings',
@@ -102,60 +102,6 @@ import { RecontactSettings, SettingsService, WorkingHours } from './settings.ser
             </div>
           }
         </div>
-      </section>
-
-      <section class="stack group">
-        <p class="section-title">Aviso de clientas que vuelven</p>
-        <div class="card card-pad stack">
-          <div class="row">
-            <span class="tile tone-primary"><app-icon name="repeat" [size]="20" /></span>
-            <div class="grow">
-              <h3>Aviso por correo cada 3 días</h3>
-              <p class="muted small">Te escribimos con las clientas que ya les toca volver y un botón de WhatsApp para cada una.</p>
-            </div>
-            <label class="switch" title="Activar o desactivar el aviso">
-              <input type="checkbox" [checked]="recontact.enabled" (change)="recontact.enabled = !recontact.enabled" aria-label="Activar aviso" />
-              <span></span>
-            </label>
-          </div>
-
-          @if (recontact.enabled) {
-            <div class="field">
-              <span class="field-label">Avisar cuando lleven sin venir más de…</span>
-              <div class="chips">
-                @for (o of recontactOptions; track o.days) {
-                  <button type="button" class="chip" [class.is-active]="recontact.days === o.days" (click)="recontact.days = o.days">
-                    {{ o.label }}
-                  </button>
-                }
-              </div>
-            </div>
-            <label class="field">
-              <span class="field-label">Correo para el aviso <span class="optional">(opcional)</span></span>
-              <input class="input" type="email" inputmode="email" [(ngModel)]="recontact.email" placeholder="Si lo dejas vacío, el de tu cuenta" />
-            </label>
-          }
-
-          <div class="row row-wrap" style="justify-content: flex-end">
-            <button type="button" class="btn" [disabled]="testing()" (click)="sendTest()">
-              @if (testing()) {
-                <span class="spinner"></span>
-              } @else {
-                <app-icon name="bell" [size]="17" />
-              }
-              Enviar aviso de prueba
-            </button>
-            <button type="button" class="btn btn-primary" [disabled]="savingRecontact()" (click)="saveRecontact()">
-              @if (savingRecontact()) {
-                <span class="spinner"></span>
-              }
-              Guardar
-            </button>
-          </div>
-        </div>
-        <p class="field-hint">
-          Solo se incluyen clientas sin cita agendada, y no se repite una que ya te avisamos en las últimas 2 semanas.
-        </p>
       </section>
 
       <section class="stack group">
@@ -320,58 +266,16 @@ export class SettingsComponent implements OnInit {
     if (!this.ownerId) return;
 
     try {
-      const [hours, rules, recontact] = await Promise.all([
+      const [hours, rules] = await Promise.all([
         this.settingsService.getWorkingHours(this.ownerId),
         this.loyaltyService.getRules(this.ownerId),
-        this.settingsService.getRecontact(this.ownerId),
       ]);
       this.hours = { start: hours.start.slice(0, 5), end: hours.end.slice(0, 5) };
       this.rules.set(rules);
-      this.recontact = recontact;
     } catch {
       this.toast.error('No se pudieron cargar los ajustes.');
     } finally {
       this.loading.set(false);
-    }
-  }
-
-  readonly recontactOptions = [
-    { days: 21, label: '3 semanas' },
-    { days: 30, label: '1 mes' },
-    { days: 60, label: '2 meses' },
-    { days: 90, label: '3 meses' },
-  ];
-  recontact: RecontactSettings = { enabled: true, days: 21, email: null };
-  savingRecontact = signal(false);
-  testing = signal(false);
-
-  async saveRecontact() {
-    if (!this.ownerId) return;
-    this.savingRecontact.set(true);
-    try {
-      await this.settingsService.setRecontact(this.ownerId, {
-        ...this.recontact,
-        email: this.recontact.email?.trim() || null,
-      });
-      this.toast.success('Aviso actualizado');
-    } catch {
-      this.toast.error('No se pudo guardar el aviso.');
-    } finally {
-      this.savingRecontact.set(false);
-    }
-  }
-
-  // Saves first so the test uses what's on screen, then asks the Edge Function
-  // to send right away (it ignores the 3-day schedule for manual tests).
-  async sendTest() {
-    await this.saveRecontact();
-    this.testing.set(true);
-    try {
-      const result = await this.settingsService.sendRecontactTest();
-      if (result.ok) this.toast.success(result.message);
-      else this.toast.error(result.message);
-    } finally {
-      this.testing.set(false);
     }
   }
 
