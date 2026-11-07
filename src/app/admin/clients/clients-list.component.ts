@@ -34,10 +34,16 @@ interface ClientListItem {
             }
           </p>
         </div>
-        <a class="btn btn-primary" routerLink="/admin/clientas/nueva">
-          <app-icon name="user-plus" [size]="18" />
-          Nueva clienta
-        </a>
+        <div class="row row-wrap">
+          <a class="btn" routerLink="/admin/clientas/volver">
+            <app-icon name="repeat" [size]="18" />
+            Les toca volver
+          </a>
+          <a class="btn btn-primary" routerLink="/admin/clientas/nueva">
+            <app-icon name="user-plus" [size]="18" />
+            Nueva clienta
+          </a>
+        </div>
       </header>
 
       <div class="input-icon search">

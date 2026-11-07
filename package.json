@@ -24,6 +24,7 @@
     "@supabase/supabase-js": "^2.117.2",
     "chart.js": "^4.5.1",
     "ng2-charts": "^6.0.1",
+    "qrcode": "^1.5.4",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"
@@ -33,6 +34,7 @@
     "@angular/cli": "^19.2.27",
     "@angular/compiler-cli": "^19.2.0",
     "@types/jasmine": "~5.1.0",
+    "@types/qrcode": "^1.5.6",
     "dotenv": "^18.0.4",
     "jasmine-core": "~5.6.0",
     "karma": "~6.4.0",

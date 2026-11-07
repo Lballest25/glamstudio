@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { OnlineBookingsService } from '../../core/services/online-bookings.service';
 import { ToastService } from '../../core/services/toast.service';
 import { formatCurrency } from '../../core/utils/currency.util';
 import {
@@ -371,6 +372,7 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
 export class AppointmentDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
+  private readonly online = inject(OnlineBookingsService);
   private readonly appointmentsService = inject(AppointmentsService);
   private readonly catalogService = inject(CatalogService);
   private readonly toast = inject(ToastService);
@@ -410,7 +412,10 @@ export class AppointmentDetailComponent implements OnInit {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) return;
     try {
-      this.appointment.set(await this.appointmentsService.getAppointmentById(id));
+      const appt = await this.appointmentsService.getAppointmentById(id);
+      this.appointment.set(appt);
+      // Opening a new online booking counts as having seen it.
+      if (appt?.source === 'online' && !appt.acknowledged_at) void this.online.markSeen(appt.id);
     } catch {
       this.toast.error('No se pudo cargar la cita.');
     } finally {

@@ -24,6 +24,7 @@
             "outputPath": "dist/glamstudio-web",
             "index": "src/index.html",
             "browser": "src/main.ts",
+            "allowedCommonJsDependencies": ["qrcode", "dijkstrajs"],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [

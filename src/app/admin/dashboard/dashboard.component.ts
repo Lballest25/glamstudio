@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { OnlineBookingsService } from '../../core/services/online-bookings.service';
 import { ToastService } from '../../core/services/toast.service';
 import { bookingUrl, copyToClipboard } from '../../core/utils/booking-link';
 import { formatCurrency } from '../../core/utils/currency.util';
@@ -11,6 +12,7 @@ import {
   formatTime,
   greeting,
   initials,
+  relativeDayLabel,
 } from '../../core/utils/format.util';
 import { statusMeta } from '../../core/utils/labels';
 import { buildBirthdayUri } from '../../core/utils/whatsapp.util';
@@ -39,6 +41,42 @@ import { BirthdayClient, DashboardService, LoyaltyAlertRow, TodayAppointment } f
           </a>
         </div>
       </header>
+
+      @if (online.unseen().length > 0) {
+        <section class="card new-bookings">
+          <div class="card-head">
+            <div class="row" style="gap: 10px">
+              <span class="tile tone-success"><app-icon name="bell" [size]="20" /></span>
+              <div>
+                <h2>
+                  {{ online.unseen().length === 1 ? '1 reserva nueva' : online.unseen().length + ' reservas nuevas' }}
+                </h2>
+                <p class="subtle small">Agendadas por tus clientas desde el link</p>
+              </div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" (click)="online.markAllSeen()">Marcar vistas</button>
+          </div>
+          <ul class="list">
+            @for (b of online.unseen(); track b.id) {
+              <li>
+                <a class="list-row" [routerLink]="['/admin/citas', b.id]">
+                  <span class="time-block">
+                    <span class="time">{{ formatTime(b.scheduled_at) }}</span>
+                    <span class="dur">{{ dayLabel(b.scheduled_at) }}</span>
+                  </span>
+                  <span class="grow">
+                    <span class="list-title truncate" style="display: block">{{ b.client_name }}</span>
+                    <span class="list-sub truncate" style="display: block">{{
+                      b.service_names.join(' · ') || 'Sin servicios'
+                    }}</span>
+                  </span>
+                  <app-icon name="chevron-right" [size]="18" class="chev" />
+                </a>
+              </li>
+            }
+          </ul>
+        </section>
+      }
 
       <section class="grid grid-stats">
         <div class="card stat">
@@ -206,6 +244,10 @@ import { BirthdayClient, DashboardService, LoyaltyAlertRow, TodayAppointment } f
   `,
   styles: [
     `
+      .new-bookings {
+        border-color: var(--c-success);
+        background: linear-gradient(180deg, var(--c-success-soft) 0%, var(--c-surface) 70px);
+      }
       .dash-grid {
         display: grid;
         gap: 20px;
@@ -237,6 +279,7 @@ export class DashboardComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly dashboard = inject(DashboardService);
   private readonly toast = inject(ToastService);
+  readonly online = inject(OnlineBookingsService);
 
   readonly greetingText = greeting();
   readonly todayLabel = formatDayLong(new Date());
@@ -279,6 +322,10 @@ export class DashboardComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  dayLabel(iso: string): string {
+    return relativeDayLabel(iso).split(',')[0];
   }
 
   alertText(alert: LoyaltyAlertRow): string {

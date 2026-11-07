@@ -1,6 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { OnlineBookingsService } from '../../core/services/online-bookings.service';
 import { ToastService } from '../../core/services/toast.service';
 import { bookingUrl, copyToClipboard } from '../../core/utils/booking-link';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -29,7 +30,10 @@ interface NavItem {
         @for (item of navItems; track item.path) {
           <a [routerLink]="item.path" routerLinkActive="is-active">
             <app-icon [name]="item.icon" [size]="20" />
-            <span>{{ item.label }}</span>
+            <span class="grow">{{ item.label }}</span>
+            @if (item.path === '/admin/citas' && online.unseen().length > 0) {
+              <span class="count" [attr.aria-label]="online.unseen().length + ' reservas nuevas'">{{ online.unseen().length }}</span>
+            }
           </a>
         }
       </nav>
@@ -68,7 +72,12 @@ interface NavItem {
     <nav class="tabbar" aria-label="Principal">
       @for (item of tabItems; track item.path) {
         <a [routerLink]="item.path" routerLinkActive="is-active">
-          <span class="tab-icon"><app-icon [name]="item.icon" [size]="22" /></span>
+          <span class="tab-icon">
+            <app-icon [name]="item.icon" [size]="22" />
+            @if (item.path === '/admin/citas' && online.unseen().length > 0) {
+              <span class="count tab-count">{{ online.unseen().length }}</span>
+            }
+          </span>
           <span class="tab-label">{{ item.label }}</span>
         </a>
       }
@@ -153,6 +162,32 @@ interface NavItem {
         background: var(--c-primary-soft);
         color: var(--c-primary);
         font-weight: 700;
+      }
+      .count {
+        min-width: 22px;
+        height: 22px;
+        padding: 0 7px;
+        border-radius: 999px;
+        display: inline-grid;
+        place-items: center;
+        background: var(--c-danger);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .tab-icon {
+        position: relative;
+      }
+      .tab-count {
+        position: absolute;
+        top: -6px;
+        right: 2px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        font-size: 11px;
+        box-shadow: 0 0 0 2px var(--c-surface);
       }
       .side-foot {
         display: flex;
@@ -301,10 +336,20 @@ interface NavItem {
     `,
   ],
 })
-export class AdminShellComponent {
+export class AdminShellComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  readonly online = inject(OnlineBookingsService);
+
+  ngOnInit() {
+    const ownerId = this.auth.currentUser()?.id;
+    if (ownerId) void this.online.start(ownerId);
+  }
+
+  ngOnDestroy() {
+    this.online.stop();
+  }
 
   readonly navItems: NavItem[] = [
     { path: '/admin/dashboard', label: 'Inicio', icon: 'home' },

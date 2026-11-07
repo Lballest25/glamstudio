@@ -2,18 +2,21 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { InstallService } from '../../core/services/install.service';
 import { ToastService } from '../../core/services/toast.service';
 import { bookingUrl, copyToClipboard } from '../../core/utils/booking-link';
 import { plural } from '../../core/utils/format.util';
+import { buildPoster, downloadDataUrl, printImage, qrDataUrl } from '../../core/utils/qr.util';
 import { buildShareUri } from '../../core/utils/whatsapp.util';
 import { IconComponent } from '../../shared/components/icon.component';
+import { SheetComponent } from '../../shared/components/sheet.component';
 import { LoyaltyRuleRow, LoyaltyService } from '../loyalty/loyalty.service';
 import { SettingsService, WorkingHours } from './settings.service';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [FormsModule, RouterLink, IconComponent],
+  imports: [FormsModule, RouterLink, IconComponent, SheetComponent],
   template: `
     <div class="page page-narrow fade-in">
       <header>
@@ -43,11 +46,50 @@ import { SettingsService, WorkingHours } from './settings.service';
               <app-icon name="message-circle" [size]="17" />
               Compartir
             </a>
+            <button type="button" class="btn" (click)="openQr()">
+              <app-icon name="qr-code" [size]="17" />
+              Código QR
+            </button>
             <a class="btn btn-ghost" [href]="link" target="_blank" rel="noopener">
               <app-icon name="external-link" [size]="17" />
               Ver
             </a>
           </div>
+        </div>
+      </section>
+
+      <section class="stack group">
+        <p class="section-title">Instalar en tu celular</p>
+        <div class="card card-pad stack">
+          <div class="row">
+            <span class="tile tone-primary"><app-icon name="smartphone" [size]="20" /></span>
+            <div class="grow">
+              <h3>GlamStudio como app</h3>
+              <p class="muted small">Un icono en tu pantalla de inicio, sin barra del navegador.</p>
+            </div>
+          </div>
+          @if (install.installed()) {
+            <p class="field-hint">
+              <app-icon name="check-circle" [size]="14" style="vertical-align: -2px" />
+              Ya estás usando GlamStudio como app.
+            </p>
+          } @else if (install.canPrompt()) {
+            <button type="button" class="btn btn-primary" style="align-self: flex-start" (click)="install.prompt()">
+              <app-icon name="download" [size]="17" />
+              Instalar app
+            </button>
+          } @else if (install.isIos) {
+            <ol class="steps">
+              <li>Abre esta página en <strong>Safari</strong>.</li>
+              <li>Toca el botón <strong>Compartir</strong> (el cuadrado con la flecha hacia arriba).</li>
+              <li>Elige <strong>Añadir a pantalla de inicio</strong>.</li>
+            </ol>
+          } @else {
+            <ol class="steps">
+              <li>Abre el menú del navegador (los tres puntos).</li>
+              <li>Elige <strong>Instalar app</strong> o <strong>Añadir a pantalla de inicio</strong>.</li>
+            </ol>
+          }
         </div>
       </section>
 
@@ -145,6 +187,33 @@ import { SettingsService, WorkingHours } from './settings.service';
 
       <p class="version">GlamStudio Web · v1.0</p>
     </div>
+
+    <app-sheet [open]="qrOpen()" title="Código QR de reservas" (closed)="qrOpen.set(false)">
+      <div class="stack qr-sheet">
+        @if (qrImage()) {
+          <img [src]="qrImage()" alt="Código QR para reservar" class="qr-img" />
+        } @else {
+          <span class="skeleton" style="width: 240px; height: 240px; margin: 0 auto"></span>
+        }
+        <p class="muted small" style="text-align: center">
+          Quien lo escanee con la cámara del celular abre tu página de reservas.
+        </p>
+        <div class="row row-wrap" style="justify-content: center">
+          <button type="button" class="btn btn-primary" [disabled]="!qrImage()" (click)="printPoster()">
+            <app-icon name="printer" [size]="17" />
+            Imprimir cartel
+          </button>
+          <button type="button" class="btn" [disabled]="!qrImage()" (click)="downloadQr()">
+            <app-icon name="download" [size]="17" />
+            Descargar QR
+          </button>
+          <button type="button" class="btn btn-ghost" [disabled]="!qrImage()" (click)="downloadPoster()">
+            <app-icon name="image" [size]="17" />
+            Descargar cartel
+          </button>
+        </div>
+      </div>
+    </app-sheet>
   `,
   styles: [
     `
@@ -162,6 +231,21 @@ import { SettingsService, WorkingHours } from './settings.service';
         font-weight: 600;
         font-size: 14px;
         color: var(--c-text-2);
+      }
+      .steps {
+        margin: 0;
+        padding-left: 20px;
+        color: var(--c-text-2);
+        font-size: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .qr-img {
+        width: min(280px, 100%);
+        margin: 0 auto;
+        border-radius: var(--r-md);
+        border: 1px solid var(--c-border);
       }
       .signout .list-title {
         color: var(--c-danger);
@@ -185,6 +269,7 @@ export class SettingsComponent implements OnInit {
   private readonly loyaltyService = inject(LoyaltyService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
+  readonly install = inject(InstallService);
 
   readonly link = bookingUrl();
   readonly shareLink = buildShareUri(`¡Agenda tu cita en GlamStudio! 💅✨\n${bookingUrl()}`);
@@ -214,6 +299,40 @@ export class SettingsComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  qrOpen = signal(false);
+  qrImage = signal<string | null>(null);
+  private posterImage: string | null = null;
+
+  async openQr() {
+    this.qrOpen.set(true);
+    if (this.qrImage()) return;
+    try {
+      this.qrImage.set(await qrDataUrl(this.link, 720));
+    } catch {
+      this.qrOpen.set(false);
+      this.toast.error('No se pudo generar el código QR.');
+    }
+  }
+
+  private async poster(): Promise<string> {
+    this.posterImage ??= await buildPoster(this.link);
+    return this.posterImage;
+  }
+
+  downloadQr() {
+    const qr = this.qrImage();
+    if (qr) downloadDataUrl(qr, 'glamstudio-qr-reservas.png');
+  }
+
+  async downloadPoster() {
+    downloadDataUrl(await this.poster(), 'glamstudio-cartel-reservas.png');
+  }
+
+  async printPoster() {
+    const ok = printImage(await this.poster());
+    if (!ok) this.toast.error('Tu navegador bloqueó la ventana. Usa "Descargar cartel" e imprímelo.');
   }
 
   async copyLink() {

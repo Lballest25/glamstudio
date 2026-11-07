@@ -92,6 +92,17 @@ import { ClientRow, ClientsService, LoyaltyProgressRow } from './clients.service
           }
         </a>
 
+        <a class="card card-pad card-link" [routerLink]="['/admin/clientas', c.id, 'fotos']">
+          <div class="row">
+            <span class="tile tone-primary"><app-icon name="camera" [size]="20" /></span>
+            <div class="grow">
+              <h3>Fotos antes y después</h3>
+              <p class="muted small">Guarda y compara el trabajo de cada visita.</p>
+            </div>
+            <app-icon name="chevron-right" [size]="18" class="chev" />
+          </div>
+        </a>
+
         <section class="card">
           <div class="card-head">
             <h2>Historial</h2>

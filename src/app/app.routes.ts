@@ -34,6 +34,11 @@ export const routes: Routes = [
             loadComponent: () => import('./admin/clients/client-form.component').then((m) => m.ClientFormComponent),
           },
           {
+            path: 'volver',
+            loadComponent: () =>
+              import('./admin/clients/returning-clients.component').then((m) => m.ReturningClientsComponent),
+          },
+          {
             path: ':id',
             loadComponent: () =>
               import('./admin/clients/client-detail.component').then((m) => m.ClientDetailComponent),
@@ -46,6 +51,11 @@ export const routes: Routes = [
             path: ':id/historial',
             loadComponent: () =>
               import('./admin/clients/client-history.component').then((m) => m.ClientHistoryComponent),
+          },
+          {
+            path: ':id/fotos',
+            loadComponent: () =>
+              import('./admin/clients/client-photos.component').then((m) => m.ClientPhotosComponent),
           },
           {
             path: ':id/fidelizacion',

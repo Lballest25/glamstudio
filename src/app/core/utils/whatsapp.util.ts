@@ -146,6 +146,25 @@ Con cariño,
   return buildUri(clientPhone, message, countryCode);
 }
 
+export function buildComeBackUri(
+  clientPhone: string,
+  clientName: string,
+  bookingLink: string,
+  countryCode = '57'
+): string {
+  const name = firstName(clientName);
+  const message = `¡Hola ${name}! 💄✨
+
+Te escribimos de *GlamStudio*: hace un tiempo que no te vemos y te extrañamos 💕
+
+Cuando quieras volver, puedes reservar tu cita tú misma aquí:
+${bookingLink}
+
+¡Te esperamos!
+*GlamStudio* 💅`;
+  return buildUri(clientPhone, message, countryCode);
+}
+
 export function buildBirthdayUri(clientPhone: string, clientName: string, countryCode = '57'): string {
   const name = firstName(clientName);
   const message = `¡Feliz cumpleaños ${name}! 🎂💄✨

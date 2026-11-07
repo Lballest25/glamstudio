@@ -9,7 +9,8 @@ export type AppointmentStatus = 'scheduled' | 'in_progress' | 'completed' | 'can
 export type ServiceCategory = 'pestañas' | 'cejas' | 'depilacion' | 'tratamiento' | 'otro';
 export type PaymentMethod = 'cash' | 'transfer' | 'card' | 'partial';
 export type BenefitType = 'discount' | 'gift';
-export type ExpenseCategory = 'insumos' | 'renta' | 'servicios' | 'marketing' | 'otro';
+export type PhotoKind = 'before' | 'after' | 'other';
+export type ExpenseCategory ='insumos' | 'renta' | 'servicios' | 'marketing' | 'otro';
 export type WhatsappMessageType =
   | 'loyalty_alert'
   | 'benefit_unlocked'
@@ -95,6 +96,8 @@ export interface Database {
           total_amount: number | null;
           duration_min: number | null;
           ends_at: string | null;
+          source: 'admin' | 'online';
+          acknowledged_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -282,6 +285,26 @@ export interface Database {
           value: unknown;
         };
         Update: Partial<Database['public']['Tables']['business_settings']['Row']>;
+        Relationships: [];
+      };
+      client_photos: {
+        Row: {
+          id: string;
+          owner_id: string;
+          client_id: string;
+          kind: PhotoKind;
+          storage_path: string;
+          thumb_path: string | null;
+          caption: string | null;
+          taken_on: string;
+          created_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['client_photos']['Row']> & {
+          owner_id: string;
+          client_id: string;
+          storage_path: string;
+        };
+        Update: Partial<Database['public']['Tables']['client_photos']['Row']>;
         Relationships: [];
       };
       expenses: {
