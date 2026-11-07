@@ -319,6 +319,17 @@
               </div>
             }
 
+            @if (!install.installed()) {
+              <div class="install-card">
+                <span class="install-icon"><app-icon name="smartphone" [size]="22" /></span>
+                <div class="install-body">
+                  <p class="install-title">Guarda GlamStudio en tu celular</p>
+                  <p class="install-text">Reserva tu próxima cita con un solo toque.</p>
+                  <app-install-guide />
+                </div>
+              </div>
+            }
+
             <div class="done-actions">
               <a class="btn btn-lg btn-block" [href]="calendarLink()" target="_blank" rel="noopener">
                 <app-icon name="calendar-plus" [size]="20" />
@@ -333,8 +344,19 @@
   </main>
 
   <footer class="foot">
-    GlamStudio · <a routerLink="/admin/login">Acceso del estudio</a>
+    GlamStudio
+    @if (!install.installed()) {
+      · <button type="button" class="foot-link" (click)="installOpen.set(true)">Instalar app</button>
+    }
+    · <a routerLink="/admin/login">Acceso del estudio</a>
   </footer>
+
+  <app-sheet [open]="installOpen()" title="Instalar GlamStudio" (closed)="installOpen.set(false)">
+    <div class="stack">
+      <p class="muted">Un icono en tu pantalla de inicio para reservar cuando quieras, sin buscar el link.</p>
+      <app-install-guide />
+    </div>
+  </app-sheet>
 
   @if (step() !== 'done') {
     <div class="bar">

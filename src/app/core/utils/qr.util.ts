@@ -1,6 +1,9 @@
 // The QR library is imported on demand so it only loads when Ajustes needs it.
+// It's CommonJS: the production bundle exposes its functions under `default`
+// only, while the dev server exposes them directly — so accept both.
 export async function qrDataUrl(text: string, size = 720): Promise<string> {
-  const QR = await import('qrcode');
+  const mod: any = await import('qrcode');
+  const QR = mod.default ?? mod;
   return QR.toDataURL(text, {
     width: size,
     margin: 2,

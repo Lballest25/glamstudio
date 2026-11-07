@@ -16,6 +16,9 @@ import {
 } from '../core/utils/format.util';
 import { CATEGORY_ORDER, categoryMeta } from '../core/utils/labels';
 import { IconComponent } from '../shared/components/icon.component';
+import { InstallGuideComponent } from '../shared/components/install-guide.component';
+import { SheetComponent } from '../shared/components/sheet.component';
+import { InstallService } from '../core/services/install.service';
 import { BookingResult, BookingService, PublicService } from './booking.service';
 
 type StepKey = 'services' | 'slot' | 'contact' | 'confirm';
@@ -60,12 +63,14 @@ function buildDays(): DayOption[] {
 @Component({
   selector: 'app-booking-shell',
   standalone: true,
-  imports: [FormsModule, RouterLink, IconComponent],
+  imports: [FormsModule, RouterLink, IconComponent, InstallGuideComponent, SheetComponent],
   templateUrl: './booking-shell.component.html',
   styleUrl: './booking-shell.component.scss',
 })
 export class BookingShellComponent implements OnInit {
   private readonly booking = inject(BookingService);
+  readonly install = inject(InstallService);
+  installOpen = signal(false);
 
   readonly steps = STEPS;
   readonly days = buildDays();

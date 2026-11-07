@@ -7,7 +7,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Agenda tu cita en GlamStudio: pestañas, cejas, depilación y tratamientos.">
   <meta name="theme-color" content="#faf7fc">
-  <link rel="manifest" href="manifest.webmanifest">
+  <!-- Two installable apps from one site: clients get "Reservas" (opens /agendar),
+       the studio gets the admin panel. Picked by the page the visitor lands on;
+       AppComponent keeps it in sync when navigating between the two. -->
+  <script>
+    (function () {
+      var link = document.createElement('link');
+      link.rel = 'manifest';
+      link.id = 'app-manifest';
+      var path = location.pathname;
+      link.href = path.indexOf('/admin') === 0 ? '/manifest.webmanifest' : '/manifest-booking.webmanifest';
+      document.head.appendChild(link);
+    })();
+  </script>
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="GlamStudio">

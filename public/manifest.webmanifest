@@ -1,4 +1,5 @@
 {
+  "id": "/admin",
   "name": "GlamStudio",
   "short_name": "GlamStudio",
   "description": "Panel de GlamStudio: agenda, clientas, cobros y reportes.",

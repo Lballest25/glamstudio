@@ -2,13 +2,13 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { InstallService } from '../../core/services/install.service';
 import { ToastService } from '../../core/services/toast.service';
 import { bookingUrl, copyToClipboard } from '../../core/utils/booking-link';
 import { plural } from '../../core/utils/format.util';
 import { buildPoster, downloadDataUrl, printImage, qrDataUrl } from '../../core/utils/qr.util';
 import { buildShareUri } from '../../core/utils/whatsapp.util';
 import { IconComponent } from '../../shared/components/icon.component';
+import { InstallGuideComponent } from '../../shared/components/install-guide.component';
 import { SheetComponent } from '../../shared/components/sheet.component';
 import { LoyaltyRuleRow, LoyaltyService } from '../loyalty/loyalty.service';
 import { SettingsService, WorkingHours } from './settings.service';
@@ -16,7 +16,7 @@ import { SettingsService, WorkingHours } from './settings.service';
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [FormsModule, RouterLink, IconComponent, SheetComponent],
+  imports: [FormsModule, RouterLink, IconComponent, InstallGuideComponent, SheetComponent],
   template: `
     <div class="page page-narrow fade-in">
       <header>
@@ -68,28 +68,7 @@ import { SettingsService, WorkingHours } from './settings.service';
               <p class="muted small">Un icono en tu pantalla de inicio, sin barra del navegador.</p>
             </div>
           </div>
-          @if (install.installed()) {
-            <p class="field-hint">
-              <app-icon name="check-circle" [size]="14" style="vertical-align: -2px" />
-              Ya estás usando GlamStudio como app.
-            </p>
-          } @else if (install.canPrompt()) {
-            <button type="button" class="btn btn-primary" style="align-self: flex-start" (click)="install.prompt()">
-              <app-icon name="download" [size]="17" />
-              Instalar app
-            </button>
-          } @else if (install.isIos) {
-            <ol class="steps">
-              <li>Abre esta página en <strong>Safari</strong>.</li>
-              <li>Toca el botón <strong>Compartir</strong> (el cuadrado con la flecha hacia arriba).</li>
-              <li>Elige <strong>Añadir a pantalla de inicio</strong>.</li>
-            </ol>
-          } @else {
-            <ol class="steps">
-              <li>Abre el menú del navegador (los tres puntos).</li>
-              <li>Elige <strong>Instalar app</strong> o <strong>Añadir a pantalla de inicio</strong>.</li>
-            </ol>
-          }
+          <app-install-guide />
         </div>
       </section>
 
@@ -269,7 +248,6 @@ export class SettingsComponent implements OnInit {
   private readonly loyaltyService = inject(LoyaltyService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
-  readonly install = inject(InstallService);
 
   readonly link = bookingUrl();
   readonly shareLink = buildShareUri(`¡Agenda tu cita en GlamStudio! 💅✨\n${bookingUrl()}`);

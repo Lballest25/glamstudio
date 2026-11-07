@@ -670,9 +670,60 @@
   color: var(--c-text-3);
 }
 
-.foot a {
+.foot a,
+.foot-link {
   color: var(--c-text-2);
   font-weight: 700;
+}
+
+.foot-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.install-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  background: var(--c-primary-soft);
+  text-align: left;
+}
+
+.install-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--c-surface);
+  color: var(--c-primary);
+  box-shadow: var(--sh-sm);
+}
+
+.install-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.install-title {
+  font-weight: 800;
+}
+
+.install-text {
+  font-size: 14px;
+  color: var(--c-text-2);
+  margin-top: -6px;
 }
 
 .bar {
