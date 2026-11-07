@@ -225,6 +225,22 @@
               </span>
             </label>
 
+            <label class="field">
+              <span class="field-label">¿Te recomendó alguien? <span class="optional">(opcional)</span></span>
+              <span class="input-icon">
+                <app-icon name="heart" [size]="18" />
+                <input
+                  class="input"
+                  name="referrer"
+                  type="tel"
+                  inputmode="tel"
+                  [(ngModel)]="referrerPhone"
+                  placeholder="Celular de quien te recomendó"
+                />
+              </span>
+              <span class="field-hint">Si es tu primera vez en GlamStudio, las dos ganan un descuento cuando completes tu primera cita.</span>
+            </label>
+
             <button type="submit" hidden></button>
           </form>
         </section>

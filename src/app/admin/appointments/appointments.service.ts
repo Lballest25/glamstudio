@@ -169,6 +169,7 @@ export class AppointmentsService {
     paymentMethod: 'cash' | 'transfer' | 'card';
     paymentReference?: string | null;
     paymentNotes?: string | null;
+    referralCreditId?: string | null;
   }): Promise<void> {
     const { error } = await this.supabase.client.rpc('complete_appointment_and_pay', {
       p_appointment_id: params.appointmentId,
@@ -178,8 +179,16 @@ export class AppointmentsService {
       p_payment_method: params.paymentMethod,
       p_payment_reference: params.paymentReference ?? null,
       p_payment_notes: params.paymentNotes ?? null,
+      // Sent only when used, so checkout keeps working before the migration.
+      ...(params.referralCreditId ? { p_referral_credit_id: params.referralCreditId } : {}),
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(
+        error.message.includes('REFERRAL_CREDIT_UNAVAILABLE')
+          ? 'El descuento por referidos ya no está disponible. Recarga la página e inténtalo de nuevo.'
+          : error.message
+      );
+    }
   }
 
   private mapClientAppointment(row: any): ClientAppointment {

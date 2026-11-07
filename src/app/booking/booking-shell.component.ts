@@ -127,6 +127,7 @@ export class BookingShellComponent implements OnInit {
   name = '';
   phone = '';
   email = '';
+  referrerPhone = '';
   phoneTouched = signal(false);
   hasPendingBenefit = signal(false);
   private phoneCheckTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -319,6 +320,7 @@ export class BookingShellComponent implements OnInit {
         clientName: this.name.trim(),
         clientPhone: this.phone.trim(),
         clientEmail: this.email.trim() || null,
+        referrerPhone: this.referrerPhone.trim() || null,
         scheduledAt: slot,
         serviceIds: [...this.selectedIds()],
       });

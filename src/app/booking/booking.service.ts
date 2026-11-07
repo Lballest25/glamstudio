@@ -55,6 +55,7 @@ export class BookingService {
     clientEmail: string | null;
     scheduledAt: string;
     serviceIds: string[];
+    referrerPhone?: string | null;
   }): Promise<BookingResult> {
     const { data, error } = await this.supabase.client.rpc('public_create_booking', {
       p_client_name: params.clientName,
@@ -62,6 +63,9 @@ export class BookingService {
       p_client_email: params.clientEmail,
       p_scheduled_at: params.scheduledAt,
       p_service_ids: params.serviceIds,
+      // Only sent when filled in, so booking keeps working before the
+      // referrals migration is applied.
+      ...(params.referrerPhone ? { p_referrer_phone: params.referrerPhone } : {}),
     });
     if (error) throw this.friendlyError(error);
 

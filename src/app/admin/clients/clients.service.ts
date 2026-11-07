@@ -12,6 +12,9 @@ export interface ClientInput {
   email: string | null;
   birth_date: string | null;
   notes: string | null;
+  // Only sent when the owner picks (or clears) a referrer, so saving a client
+  // keeps working before the referrals migration is applied.
+  referred_by?: string | null;
 }
 
 // Port of lib/features/clients/data/datasources/clients_supabase_datasource.dart.

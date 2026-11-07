@@ -50,6 +50,7 @@ export interface Database {
           photo_url: string | null;
           notes: string | null;
           is_active: boolean;
+          referred_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -287,6 +288,29 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['business_settings']['Row']>;
         Relationships: [];
       };
+      referral_credits: {
+        Row: {
+          id: string;
+          owner_id: string;
+          client_id: string;
+          referral_client_id: string;
+          role: 'referrer' | 'referred';
+          discount_pct: number;
+          status: 'available' | 'used';
+          earned_at: string;
+          expires_at: string;
+          used_appointment_id: string | null;
+          used_at: string | null;
+        };
+        Insert: Partial<Database['public']['Tables']['referral_credits']['Row']> & {
+          owner_id: string;
+          client_id: string;
+          referral_client_id: string;
+          role: 'referrer' | 'referred';
+        };
+        Update: Partial<Database['public']['Tables']['referral_credits']['Row']>;
+        Relationships: [];
+      };
       client_photos: {
         Row: {
           id: string;
@@ -358,6 +382,7 @@ export interface Database {
           p_client_email: string | null;
           p_scheduled_at: string;
           p_service_ids: string[];
+          p_referrer_phone?: string | null;
         };
         Returns: {
           appointment_id: string;
@@ -384,6 +409,7 @@ export interface Database {
           p_payment_method: PaymentMethod;
           p_payment_reference?: string | null;
           p_payment_notes?: string | null;
+          p_referral_credit_id?: string | null;
         };
         Returns: string;
       };

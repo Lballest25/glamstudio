@@ -8,6 +8,7 @@ import { formatDayLong, formatTime } from '../../core/utils/format.util';
 import { pickGiftLine } from '../../core/utils/gift.util';
 import { PAYMENT_OPTIONS, PaymentChoice } from '../../core/utils/labels';
 import { IconComponent } from '../../shared/components/icon.component';
+import { ReferralCredit, ReferralsService } from '../clients/referrals.service';
 import { LoyaltyProgressRow, LoyaltyService } from '../loyalty/loyalty.service';
 import { AppointmentDetail, AppointmentsService } from './appointments.service';
 
@@ -44,6 +45,14 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
               </p>
             </div>
           </section>
+        } @else if (usingReferral()) {
+          <section class="benefit">
+            <span class="benefit-icon"><app-icon name="heart" [size]="24" /></span>
+            <div>
+              <p class="benefit-title">{{ discountPct() }}% de descuento por referidos</p>
+              <p class="benefit-text">Se aplica automáticamente en esta cita.</p>
+            </div>
+          </section>
         } @else if (discountPct() > 0) {
           <section class="benefit">
             <span class="benefit-icon"><app-icon name="percent" [size]="24" /></span>
@@ -52,6 +61,16 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
               <p class="benefit-text">Se aplica automáticamente en esta cita.</p>
             </div>
           </section>
+        }
+
+        @if (credit() && !usingReferral()) {
+          <p class="alert alert-info">
+            <app-icon name="heart" [size]="18" />
+            <span>
+              {{ a.client_name }} también tiene un {{ credit()!.discount_pct }}% por referidos: se aplicará en su
+              siguiente cita (se usa un solo beneficio por cita).
+            </span>
+          </p>
         }
 
         <section class="card receipt">
@@ -74,7 +93,11 @@ import { AppointmentDetail, AppointmentsService } from './appointments.service';
             @if (discountPct() > 0 || isGift()) {
               <div class="row-between muted"><span>Subtotal</span><span class="num">{{ formatCurrency(subtotal()) }}</span></div>
               <div class="row-between discount">
-                <span>{{ isGift() ? 'Obsequio (' + giftLine()?.service_name + ')' : 'Descuento ' + discountPct() + '%' }}</span>
+                <span>{{
+                  isGift()
+                    ? 'Obsequio (' + giftLine()?.service_name + ')'
+                    : (usingReferral() ? 'Descuento por referidos ' : 'Descuento ') + discountPct() + '%'
+                }}</span>
                 <span class="num">−{{ formatCurrency(subtotal() - total()) }}</span>
               </div>
             }
@@ -203,6 +226,7 @@ export class CompleteAppointmentComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly appointmentsService = inject(AppointmentsService);
   private readonly loyaltyService = inject(LoyaltyService);
+  private readonly referralsService = inject(ReferralsService);
   private readonly toast = inject(ToastService);
 
   readonly paymentOptions = PAYMENT_OPTIONS;
@@ -222,9 +246,14 @@ export class CompleteAppointmentComponent implements OnInit {
     const p = this.progress();
     return !!p?.benefit_pending && p.pending_benefit_type === 'gift';
   });
+  credit = signal<ReferralCredit | null>(null);
+  // One benefit per appointment: a pending loyalty benefit goes first and the
+  // referral credit waits for the next visit.
+  usingReferral = computed(() => !!this.credit() && !this.progress()?.benefit_pending);
   discountPct = computed(() => {
     const p = this.progress();
-    return p?.benefit_pending && p.pending_benefit_type === 'discount' ? (p.pending_benefit_value ?? 0) : 0;
+    if (p?.benefit_pending) return p.pending_benefit_type === 'discount' ? (p.pending_benefit_value ?? 0) : 0;
+    return this.usingReferral() ? (this.credit()?.discount_pct ?? 0) : 0;
   });
   giftLine = computed(() => (this.isGift() ? pickGiftLine(this.appointment()?.services ?? []) : undefined));
   total = computed(() =>
@@ -245,12 +274,28 @@ export class CompleteAppointmentComponent implements OnInit {
     try {
       const appt = await this.appointmentsService.getAppointmentById(id);
       this.appointment.set(appt);
-      if (appt) this.progress.set(await this.loyaltyService.getProgress(ownerId, appt.client_id));
+      if (appt) {
+        const [progress, credit] = await Promise.all([
+          this.loyaltyService.getProgress(ownerId, appt.client_id),
+          this.referralsService.getAvailableCredit(appt.client_id),
+        ]);
+        this.progress.set(progress);
+        this.credit.set(credit);
+      }
     } catch {
       this.toast.error('No se pudo cargar la cita.');
     } finally {
       this.loading.set(false);
     }
+  }
+
+  // If this was a referred client's first visit, the database just created
+  // two credits — tell the owner who earned one so she can let them know.
+  private async announceReferralRewards(clientId: string) {
+    const earned = await this.referralsService.creditsEarnedFrom(clientId);
+    if (earned.length === 0) return;
+    const names = earned.map((e) => e.holderName).join(' y ');
+    this.toast.show(`🎉 Por recomendación, ${names} ganaron ${earned[0].discountPct}% para su próxima cita`, 'info');
   }
 
   async confirm(a: AppointmentDetail) {
@@ -264,8 +309,10 @@ export class CompleteAppointmentComponent implements OnInit {
         totalAmount: this.total(),
         paymentMethod: this.method(),
         paymentReference: this.method() === 'transfer' ? this.reference.trim() || null : null,
+        referralCreditId: this.usingReferral() ? this.credit()!.id : null,
       });
       this.toast.success(this.total() > 0 ? 'Cobro registrado' : 'Obsequio registrado');
+      await this.announceReferralRewards(a.client_id);
       await this.router.navigate(['/admin/citas', a.id]);
     } catch (error) {
       this.errorMessage.set(error instanceof Error ? error.message : 'No se pudo completar la cita.');

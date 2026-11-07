@@ -14,6 +14,7 @@ import { IconComponent } from '../../shared/components/icon.component';
 import { AppointmentsService, ClientAppointment } from '../appointments/appointments.service';
 import { LoyaltyRuleRow, LoyaltyService } from '../loyalty/loyalty.service';
 import { ClientRow, ClientsService, LoyaltyProgressRow } from './clients.service';
+import { ReferralCredit, ReferralsService, ReferralSummary } from './referrals.service';
 
 @Component({
   selector: 'app-client-detail',
@@ -102,6 +103,49 @@ import { ClientRow, ClientsService, LoyaltyProgressRow } from './clients.service
             <app-icon name="chevron-right" [size]="18" class="chev" />
           </div>
         </a>
+
+        @if (hasReferralInfo()) {
+          <section class="card">
+            <div class="card-head"><h2>Referidos</h2></div>
+            <ul class="list">
+              @if (referrals().referredBy; as by) {
+                <li>
+                  <a class="list-row" [routerLink]="['/admin/clientas', by.id]">
+                    <span class="tile tone-primary"><app-icon name="heart" [size]="18" /></span>
+                    <span class="grow">
+                      <span class="list-sub" style="display: block">Recomendada por</span>
+                      <span class="list-title" style="display: block">{{ by.full_name }}</span>
+                    </span>
+                    <app-icon name="chevron-right" [size]="18" class="chev" />
+                  </a>
+                </li>
+              }
+              @for (f of referrals().friends; track f.id) {
+                <li>
+                  <a class="list-row" [routerLink]="['/admin/clientas', f.id]">
+                    <span class="grow">
+                      <span class="list-sub" style="display: block">Recomendó a</span>
+                      <span class="list-title" style="display: block">{{ f.full_name }}</span>
+                    </span>
+                    <span class="badge" [class.badge-success]="f.completedFirstVisit">
+                      {{ f.completedFirstVisit ? 'Ya vino' : 'Aún no viene' }}
+                    </span>
+                  </a>
+                </li>
+              }
+              @for (cr of referrals().credits; track cr.id) {
+                <li class="list-row">
+                  <span class="tile tone-gold"><app-icon name="gift" [size]="18" /></span>
+                  <span class="grow">
+                    <span class="list-title" style="display: block">{{ cr.discount_pct }}% de descuento por referidos</span>
+                    <span class="list-sub" style="display: block">{{ creditText(cr) }}</span>
+                  </span>
+                  <span class="badge" [class]="creditBadge(cr)">{{ creditStatus(cr) }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
 
         <section class="card">
           <div class="card-head">
@@ -216,6 +260,7 @@ export class ClientDetailComponent implements OnInit {
   private readonly clientsService = inject(ClientsService);
   private readonly appointmentsService = inject(AppointmentsService);
   private readonly loyaltyService = inject(LoyaltyService);
+  private readonly referralsService = inject(ReferralsService);
 
   loading = signal(true);
   client = signal<ClientRow | null>(null);
@@ -256,6 +301,12 @@ export class ClientDetailComponent implements OnInit {
       : `${p.total_sessions} sesiones en total`;
   });
 
+  referrals = signal<ReferralSummary>({ referredBy: null, friends: [], credits: [] });
+  hasReferralInfo = computed(() => {
+    const r = this.referrals();
+    return !!r.referredBy || r.friends.length > 0 || r.credits.length > 0;
+  });
+
   formatCurrency = formatCurrency;
   formatDateMedium = formatDateMedium;
 
@@ -275,6 +326,21 @@ export class ClientDetailComponent implements OnInit {
     this.progress.set(progress);
     this.rules.set(rules);
     this.loading.set(false);
+    this.referrals.set(await this.referralsService.getSummary(id, client?.referred_by ?? null));
+  }
+
+  creditStatus(cr: ReferralCredit): string {
+    if (cr.status === 'used') return 'Usado';
+    return new Date(cr.expires_at) < new Date() ? 'Vencido' : 'Disponible';
+  }
+
+  creditBadge(cr: ReferralCredit): string {
+    return this.creditStatus(cr) === 'Disponible' ? 'badge-gold' : '';
+  }
+
+  creditText(cr: ReferralCredit): string {
+    if (cr.status === 'used') return `Usado el ${formatDateMedium(cr.used_at ?? cr.earned_at)}`;
+    return `Vence el ${formatDateMedium(cr.expires_at)}`;
   }
 
   birthday(value: string): string {
